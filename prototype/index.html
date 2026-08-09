@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UC TENDER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=Assistant:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Rubik:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="api.js"></script>
+<style>
+  :root{
+    --signal: #2563EB;
+    --signal-strong: #1D4ED8;
+    --signal-soft: rgba(37,99,235,.10);
+    --signal-3: rgba(37,99,235,.04);
+    --signal-8: rgba(37,99,235,.08);
+    --signal-20: rgba(37,99,235,.22);
+    --signal-35: rgba(37,99,235,.40);
+    --amber-signal: #D97706;
+    --navy: #0E1B33;
+    --navy-soft: rgba(255,255,255,.08);
+    --page: #F4F6FB;
+    --hairline: #E5E9F2;
+    --hairline-soft: #EEF1F8;
+  }
+  html,body{font-family:"Assistant","Heebo",ui-sans-serif,system-ui,sans-serif;background:var(--page);color:#0F1E3D;}
+  .card-soft{box-shadow:0 1px 2px rgba(15,30,61,.04), 0 4px 16px rgba(15,30,61,.04);}
+  .font-display{font-family:"Heebo","Assistant",sans-serif;letter-spacing:-0.02em;}
+  .font-mono{font-family:"JetBrains Mono",ui-monospace,monospace;}
+  .t-10{font-size:10px;line-height:1.5;letter-spacing:.02em}
+  .t-11{font-size:11px;line-height:1.5;letter-spacing:.01em}
+  .t-12{font-size:12px;line-height:1.55}
+  .t-13{font-size:13px;line-height:1.6}
+  .t-15{font-size:15px;line-height:1.65}
+  .t-18{font-size:18px;line-height:1.5;letter-spacing:-.005em}
+  .t-24{font-size:24px;line-height:1.35;letter-spacing:-.012em}
+  .t-32{font-size:32px;line-height:1.2;letter-spacing:-.02em}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  [data-screen]{display:none}
+  [data-screen].active{display:block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite}
+  @keyframes ping{75%,100%{transform:scale(2);opacity:0}}
+  .ping{animation:ping 1s cubic-bezier(0,0,.2,1) infinite}
+
+  /* --- alive / striking --- */
+  .disp{font-family:"Rubik","Heebo",sans-serif;}
+  @keyframes aurora{0%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,-40px) scale(1.2)}66%{transform:translate(-40px,30px) scale(.9)}100%{transform:translate(0,0) scale(1)}}
+  .blob{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;animation:aurora 18s ease-in-out infinite;}
+  @keyframes fadeup{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+  .fu{opacity:0;animation:fadeup .8s cubic-bezier(.2,.8,.2,1) forwards;}
+  .d1{animation-delay:.05s}.d2{animation-delay:.18s}.d3{animation-delay:.32s}.d4{animation-delay:.46s}.d5{animation-delay:.6s}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+  .floaty{animation:floaty 6s ease-in-out infinite;}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .shine{background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);background-size:200% 100%;animation:shimmer 1.8s linear infinite;}
+  @keyframes ringfill{from{stroke-dashoffset:383}to{stroke-dashoffset:46}}
+  .ring-anim{animation:ringfill 2s cubic-bezier(.4,0,.2,1) forwards .5s;stroke-dashoffset:383;}
+  @keyframes barfill{from{width:0}to{width:var(--w)}}
+  .bar-anim{animation:barfill 1.4s cubic-bezier(.4,0,.2,1) forwards .7s;width:0;}
+  .gradtext{background:linear-gradient(100deg,#60A5FA 0%,#818CF8 40%,#22D3EE 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .glass{background:rgba(255,255,255,.07);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.14);}
+  @keyframes caret{50%{opacity:0}}
+  .caret::after{content:"▌";margin-inline-start:2px;animation:caret .9s step-end infinite;color:#22D3EE;}
+</style>
+</head>
+<body>
+
+<!-- ============================= DASHBOARD ============================= -->
+<section data-screen="dashboard" class="active">
+  <div class="min-h-dvh w-full flex" style="font-feature-settings:'tnum'">
+    <!-- Sidebar (right in RTL) -->
+    <nav class="w-16 lg:w-60 flex flex-col shrink-0" style="background:var(--navy)">
+      <a onclick="go('dashboard')" class="h-14 px-4 lg:px-5 flex items-center gap-3 cursor-pointer" style="border-bottom:1px solid var(--navy-soft)"><div class="w-7 h-7 flex items-center justify-center rounded-[6px]" style="background:var(--signal)"><div class="w-2.5 h-2.5 bg-white rounded-[1px]"></div></div><span class="hidden lg:block font-semibold tracking-tight t-15 text-white">UC TENDER</span></a>
+      <div class="flex-1 py-4">
+        <div class="hidden lg:block px-5 mb-2 t-10 font-semibold tracking-[0.18em] uppercase text-white/40">סביבת עבודה</div>
+        <ul class="space-y-1 px-2">
+          <li><a onclick="go('dashboard')" class="flex items-center gap-3 px-3 h-11 t-13 cursor-pointer rounded-[8px] text-white font-semibold" style="background:rgba(255,255,255,.10)"><span class="w-[18px] text-center">▦</span><span class="hidden lg:block flex-1">לוח בקרה</span></a></li>
+          <li><a onclick="go('knowledge')" class="flex items-center gap-3 px-3 h-11 t-13 cursor-pointer rounded-[8px] text-white/60 hover:text-white hover:bg-white/5"><span class="w-[18px] text-center">▤</span><span class="hidden lg:block flex-1">מאגר ידע</span></a></li>
+          <li><a onclick="go('drafts')" class="flex items-center gap-3 px-3 h-11 t-13 cursor-pointer rounded-[8px] text-white/60 hover:text-white hover:bg-white/5"><span class="w-[18px] text-center">✎</span><span class="hidden lg:block flex-1">טיוטות ואישורים</span><span class="hidden lg:inline-flex items-center justify-center min-w-5 h-5 px-1.5 t-10 font-semibold rounded-full bg-white/15 text-white">2</span></a></li>
+          <li><a onclick="go('settings')" class="flex items-center gap-3 px-3 h-11 t-13 cursor-pointer rounded-[8px] text-white/60 hover:text-white hover:bg-white/5"><span class="w-[18px] text-center">⚙</span><span class="hidden lg:block flex-1">הגדרות</span></a></li>
+        </ul>
+      </div>
+      <div class="p-4" style="border-top:1px solid var(--navy-soft)">
+        <div class="hidden lg:flex items-center gap-2 t-11 text-white/55"><span class="text-emerald-400">🛡</span><span class="font-semibold tracking-wide">SOC2 · Zero Retention</span></div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="flex-1 flex flex-col min-w-0">
+      <!-- Header -->
+      <header class="h-14 border-b flex items-center justify-between px-5 lg:px-8 bg-white shrink-0 gap-6" style="border-color:var(--hairline)">
+        <div class="flex items-center gap-4 min-w-0 flex-1">
+          <nav class="flex items-center gap-1.5 t-13 min-w-0"><span class="text-black/55">סביבת עבודה</span><span class="text-black/25">/</span><span class="text-black font-semibold">לוח בקרה</span></nav>
+          <span class="h-4 w-px" style="background:var(--hairline)"></span>
+          <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span class="t-12 text-black/70">כל המערכות תקינות · עדכון אחרון לפני 12 שנ'</span></div>
+        </div>
+        <button class="hidden md:inline-flex items-center gap-2 h-11 px-3 border rounded-[8px] t-12 text-black/60 hover:text-black" style="border-color:var(--hairline)">🔍<span>חפש מכרז, מסמך, סעיף…</span><kbd class="font-mono t-10 text-black/55 border border-black/10 px-1 rounded-sm">⌘K</kbd></button>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="t-11 font-semibold border px-3 h-11 inline-flex items-center rounded-[8px]" style="border-color:var(--hairline)">עב / EN</span>
+          <button class="t-12 font-semibold border px-3 h-11 rounded-[8px] hover:border-black/40" style="border-color:var(--hairline)">ייצוא CSV</button>
+          <button onclick="go('tender-new')" class="text-white t-12 font-semibold px-4 h-11 rounded-[8px]" style="background:var(--signal)">מכרז חדש</button>
+        </div>
+      </header>
+
+      <div class="flex-1 min-w-0 overflow-y-auto p-6 lg:p-10">
+        <div class="flex items-end justify-between mb-6">
+          <div><h1 class="font-display t-24 font-semibold">לוח בקרה</h1><p id="db-sub" class="mt-1 t-13 text-black/55">—</p></div>
+          <span id="db-updated" class="t-11 font-mono text-black/40">—</span>
+        </div>
+
+        <div id="db-kpi" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 mb-4">
+          <section class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">
+            <div class="flex items-center justify-between mb-3"><h2 class="t-13 font-semibold inline-flex items-center gap-1.5" style="color:var(--amber-signal)">⚠ דורש תשומת לב עכשיו</h2><span id="db-attention-count" class="t-11 text-black/45"></span></div>
+            <div id="db-attention"></div>
+          </section>
+          <section class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">
+            <h2 class="t-13 font-semibold mb-4">צנרת לפי שלב</h2>
+            <div id="db-pipeline" class="space-y-3"></div>
+          </section>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
+          <section class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">
+            <h2 class="t-13 font-semibold mb-3">זכיות והפסדים · 12 חודשים</h2>
+            <div id="db-winloss"></div>
+          </section>
+          <section class="rounded-[8px] border bg-white card-soft overflow-hidden" style="border-color:var(--hairline)">
+            <div class="flex items-center justify-between px-5 py-3.5 border-b" style="border-color:var(--hairline)"><h2 class="t-15 font-semibold">מכרזים פעילים</h2><span id="db-tenders-count" class="t-11 text-black/45"></span></div>
+            <div id="db-tenders"></div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<script>
+  function dotColor(d){return d==null?'bg-black/20':d<=7?'bg-rose-500':d<=14?'bg-amber-500':'bg-black/30'}
+  function deadlineText(d){return d==null?'text-black/50':d<=7?'text-rose-700':d<=14?'text-amber-700':'text-black/60'}
+  const STAGE_ORDER=['התאמה','טיוטה','אישור','הגשה'];
+
+  async function renderDashboard(){
+    const d = await window.API.dashboard(null);
+    if(!d) return;
+    const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+    set('db-sub', d.kpis.active? `${d.kpis.active} מכרזים פעילים · ממויין לפי דחיפות` : 'אין מכרזים עדיין — התחל ממכרז חדש');
+    set('db-updated', 'עודכן ' + new Date(d.updatedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}));
+
+    const kpi=(label,val,sub,subColor)=>`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/50">${label}</div><div class="mt-2 font-display t-32 leading-none tabular-nums">${val}</div><div class="mt-1.5 t-11 ${subColor||'text-black/45'}">${sub}</div></div>`;
+    document.getElementById('db-kpi').innerHTML =
+      kpi('מכרזים פעילים', d.kpis.active, d.kpis.active?'בתהליך':'—') +
+      kpi('אחוז זכייה · 12ח׳', d.winLoss.rate==null?'—':d.winLoss.rate+'%', d.winLoss.rate==null?'אין תוצאות עדיין':`${d.winLoss.win} זכיות · ${d.winLoss.lose} הפסדים`, d.winLoss.rate==null?'':'text-emerald-600') +
+      kpi('ממתינים לאישור', d.kpis.pendingApproval, d.kpis.pendingApproval?'לטיפול':'—') +
+      kpi('דחופים · ≤7 ימים', d.kpis.urgent, d.kpis.urgent?'הגשה קרובה':'—', d.kpis.urgent?'text-rose-600':'');
+
+    set('db-attention-count', d.attention.length?`${d.attention.length} פריטים`:'');
+    document.getElementById('db-attention').innerHTML = d.attention.length ? d.attention.map(a=>`
+      <div class="flex items-center gap-3 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)">
+        <span class="w-2 h-2 rounded-full shrink-0 ${a.severity==='danger'?'bg-rose-500':'bg-amber-500'}"></span>
+        <div class="flex-1 min-w-0 cursor-pointer" onclick="selectTender('${a.id}')"><div class="t-13 font-medium truncate">${a.name}</div><div class="t-11 text-black/55 truncate">${a.issuer} · ${a.code}</div></div>
+        <span class="t-11 font-medium px-2 h-6 inline-flex items-center rounded-full ${a.severity==='danger'?'text-rose-700 bg-rose-50':'text-amber-700 bg-amber-50'}">${a.reason}</span>
+      </div>`).join('')
+      : `<div class="flex items-center gap-2 py-6 justify-center t-12 text-black/45"><span style="color:oklch(0.62 0.15 155)">✓</span>אין התראות פתוחות</div>`;
+
+    const maxStage=Math.max(1,...STAGE_ORDER.map(s=>d.pipeline[s]||0));
+    const anyPipe=STAGE_ORDER.some(s=>d.pipeline[s]>0);
+    document.getElementById('db-pipeline').innerHTML = anyPipe ? STAGE_ORDER.map(s=>{
+      const n=d.pipeline[s]||0;
+      return `<div class="flex items-center gap-3"><span class="w-12 t-12 text-black/60">${s}</span><div class="flex-1 h-2.5 rounded-full overflow-hidden" style="background:var(--signal-8)"><div class="h-full rounded-full" style="width:${Math.round(n/maxStage*100)}%;background:var(--signal)"></div></div><span class="t-12 font-semibold w-4 tabular-nums">${n}</span></div>`;
+    }).join('') : `<div class="py-4 t-12 text-black/45">עדיין אין מכרזים בצנרת.</div>`;
+
+    const wl=d.winLoss, total=wl.win+wl.lose+wl.pending;
+    document.getElementById('db-winloss').innerHTML = total ? `
+      <div class="flex items-baseline gap-2 mb-3"><span class="font-display t-32 leading-none tabular-nums">${wl.rate==null?'—':wl.rate+'%'}</span><span class="t-12 text-black/55">אחוז זכייה</span></div>
+      <div class="flex h-2.5 rounded-full overflow-hidden gap-0.5 mb-3">${wl.win?`<div style="flex:${wl.win};background:oklch(0.62 0.15 155)"></div>`:''}${wl.lose?`<div style="flex:${wl.lose};background:oklch(0.58 0.22 25)"></div>`:''}${wl.pending?`<div style="flex:${wl.pending};background:#B4B2A9"></div>`:''}</div>
+      <div class="flex flex-wrap gap-x-4 gap-y-1 t-11 text-black/60">
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:oklch(0.62 0.15 155)"></span>זכיות ${wl.win}</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:oklch(0.58 0.22 25)"></span>הפסדים ${wl.lose}</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-black/25"></span>ממתין ${wl.pending}</span>
+      </div>`
+      : `<div class="py-4 t-12 text-black/45">עדיין אין תוצאות. דווח על הגשות במסך "אחרי ההגשה" והן יופיעו כאן.</div>`;
+
+    set('db-tenders-count', d.tenders.length?`${d.tenders.length} מכרזים`:'');
+    document.getElementById('db-tenders').innerHTML = d.tenders.length ? d.tenders.map(t=>`
+      <div class="flex items-center gap-3 px-5 py-3.5 border-t cursor-pointer hover:bg-black/[0.015]" style="border-color:var(--hairline-soft)" onclick="selectTender('${t.id}')">
+        <div class="flex-1 min-w-0"><div class="t-13 font-medium truncate">${t.name}</div><div class="t-11 text-black/55 truncate">${t.issuer} · <span class="font-mono">${t.code}</span></div></div>
+        <div class="t-12 inline-flex items-center gap-1.5 w-20 ${deadlineText(t.days)}"><span class="w-1.5 h-1.5 rounded-full ${dotColor(t.days)}"></span>${t.days==null?'—':t.days+' ימים'}</div>
+        <div class="t-12 font-mono tabular-nums text-black/70 w-12 text-center">${t.match_score==null?'—':t.match_score+'%'}</div>
+        <span class="t-11 font-medium px-2 h-6 inline-flex items-center rounded-full justify-center" style="background:var(--signal-8);color:var(--signal)">${t.stage}</span>
+      </div>`).join('')
+      : `<div class="px-5 py-10 text-center"><div class="t-13 font-medium mb-1">עדיין אין מכרזים</div><div class="t-12 text-black/50 mb-4">הזן מכרז ראשון כדי לראות ניתוח והתאמה מול הידע שלך.</div><button onclick="go('tender-new')" class="text-white t-12 font-semibold px-4 h-10 rounded-[8px]" style="background:var(--signal)">מכרז חדש</button></div>`;
+  }
+  window.renderDashboard=renderDashboard;
+  function go(name){
+    document.querySelectorAll('[data-screen]').forEach(s=>s.classList.remove('active'));
+    const el=document.querySelector(`[data-screen="${name}"]`);
+    if(el){el.classList.add('active');window.scrollTo(0,0);}
+    // רענון מסכים מונחי-נתונים בכניסה אליהם
+    if(name==='knowledge' && window.renderKnowledge) window.renderKnowledge();
+    if(name==='review' && window.renderReview) window.renderReview();
+    if(name==='dashboard' && window.renderDashboard) window.renderDashboard();
+    if(name==='tender-analysis' && window.renderAnalysis) window.renderAnalysis();
+    if(name==='draft-mapping' && window.renderMapping) window.renderMapping();
+    if(name==='tender-draft' && window.renderDraft) window.renderDraft();
+    if(name==='post-submission' && window.psReset) window.psReset();
+    if(name==='company-setup' && window.renderCompanySetup) window.renderCompanySetup();
+    if(name==='settings' && window.renderSettings) window.renderSettings();
+    if(name==='upload' && window.renderUpload) window.renderUpload();
+  }
+  window.go=go;
+  // בחירת מכרז משורת ה-pipeline → פתיחת מסך הניתוח שלו
+  window.selectTender=function(id){ window.currentTenderId=id; go('tender-analysis'); };
+
+  // כניסה חכמה: לקוח שהוקם → דשבורד; לקוח חדש (ריק) → אונבורדינג
+  (async function entry(){
+    try{
+      const [comp, kb] = await Promise.all([ window.API.company(null), window.API.knowledge(null) ]);
+      const onboarded = (comp && (comp.onboarded || comp.name)) || (kb && kb.counts && kb.counts.projects > 0);
+      go(onboarded ? 'dashboard' : 'welcome');
+    }catch(e){ go('dashboard'); }
+  })();
+</script>
+
+<!-- ============================= WELCOME ============================= -->
+<section data-screen="welcome">
+  <div class="min-h-dvh flex flex-col" style="background:var(--navy)">
+    <header class="mx-auto w-full max-w-[1100px] px-8 h-20 flex items-center shrink-0">
+      <div class="flex items-center gap-2.5"><span class="grid place-items-center w-9 h-9 rounded-[8px] text-white font-bold text-[11px]" style="background:var(--signal)">UC</span><span class="t-18 font-semibold tracking-tight text-white">UC TENDER</span></div>
+    </header>
+    <div class="flex-1 flex items-center">
+      <div class="mx-auto w-full max-w-[760px] px-8 py-14 text-center">
+        <div class="fu d1 inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 t-12 font-semibold text-white/75 mb-8" style="background:rgba(255,255,255,.08)">AI למכרזים ציבוריים · עברית</div>
+        <h1 class="fu d2 font-display text-white font-semibold leading-[1.1] mb-5" style="font-size:clamp(30px,5vw,46px)">ברוכים הבאים</h1>
+        <p class="fu d3 t-18 text-white/70 max-w-[520px] mx-auto leading-relaxed mb-12">בוא נבנה את הזיכרון הארגוני של החברה שלך. שלושה צעדים — ואתה מוכן להגיש מכרז ראשון.</p>
+
+        <div class="fu d4 grid grid-cols-1 sm:grid-cols-3 gap-3 mb-12 text-right">
+          <div class="rounded-[10px] p-4" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10)"><div class="w-7 h-7 rounded-full grid place-items-center t-12 font-mono font-semibold text-white mb-3" style="background:var(--signal)">1</div><div class="t-13 font-semibold text-white mb-1">זהות החברה</div><div class="t-11 text-white/55 leading-relaxed">מי אתם ומה תחומי ההתמחות</div></div>
+          <div class="rounded-[10px] p-4" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10)"><div class="w-7 h-7 rounded-full grid place-items-center t-12 font-mono font-semibold text-white/80 mb-3" style="background:rgba(255,255,255,.14)">2</div><div class="t-13 font-semibold text-white mb-1">העלאת מסמכים</div><div class="t-11 text-white/55 leading-relaxed">פרויקטים ואישורים — המערכת לומדת מהם</div></div>
+          <div class="rounded-[10px] p-4" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10)"><div class="w-7 h-7 rounded-full grid place-items-center t-12 font-mono font-semibold text-white/80 mb-3" style="background:rgba(255,255,255,.14)">3</div><div class="t-13 font-semibold text-white mb-1">סקירה ואישור</div><div class="t-11 text-white/55 leading-relaxed">עוברים על מה שנלמד, ומוכנים</div></div>
+        </div>
+
+        <button onclick="go('company-setup')" class="fu d5 t-15 font-semibold text-white px-8 rounded-[10px] transition-transform hover:scale-[1.02]" style="height:52px;background:var(--signal)">בוא נתחיל →</button>
+        <div class="fu d5 mt-6 t-12 text-white/45">⏱ מספר דקות · הנתונים שלך נשארים שלך</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= COMPANY SETUP (S01b) ============================= -->
+<section data-screen="company-setup">
+  <div class="min-h-dvh bg-white">
+    <header class="border-b" style="border-color:var(--hairline)"><div class="mx-auto max-w-[1200px] px-8 h-14 flex items-center justify-between"><a onclick="go('welcome')" class="inline-flex items-center gap-2 t-12 font-semibold text-black/65 hover:text-black cursor-pointer">→ חזרה</a><span id="cs-step" class="t-11 font-semibold uppercase tracking-[0.16em]" style="color:var(--signal)">שלב 01 מתוך 03</span></div>
+      <div id="cs-steps" class="mx-auto max-w-[1200px] px-8 pb-4"><ol class="flex items-center gap-3">
+        <li class="flex-1 flex items-center gap-3"><div class="flex items-center gap-2"><span class="inline-grid place-items-center w-6 h-6 rounded-full t-11 font-mono font-semibold text-white" style="background:var(--signal)">1</span><span class="t-12 font-semibold" style="color:var(--signal)">זהות החברה</span></div><span class="flex-1 h-px" style="background:var(--hairline)"></span></li>
+        <li class="flex-1 flex items-center gap-3"><div class="flex items-center gap-2"><span class="inline-grid place-items-center w-6 h-6 rounded-full t-11 font-mono font-semibold bg-black/[0.06] text-black/60">2</span><span class="t-12 text-black/55">העלאת מסמכים</span></div><span class="flex-1 h-px" style="background:var(--hairline)"></span></li>
+        <li class="flex-1 flex items-center gap-3"><div class="flex items-center gap-2"><span class="inline-grid place-items-center w-6 h-6 rounded-full t-11 font-mono font-semibold bg-black/[0.06] text-black/60">3</span><span class="t-12 text-black/55">סקירה</span></div></li>
+      </ol></div>
+    </header>
+    <main class="mx-auto max-w-[920px] px-8 pt-12 pb-24">
+      <div class="t-11 font-semibold uppercase tracking-[0.2em]" style="color:var(--signal)">זהות החברה</div>
+      <h1 id="cs-title" class="mt-3 font-display t-32 font-semibold">ספרו לנו על החברה</h1>
+      <p class="mt-3 t-13 text-black/65 max-w-[640px]">ככל שנדע יותר — נתאים מכרזים מדויק יותר ונאמת תנאי סף אוטומטית. רק שם העסק חובה; את השאר אפשר להשלים בהמשך בהגדרות. הנתונים נשמרים חסויים.</p>
+
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">שם העסק</label><input id="cs-name" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="פתרונות הנדסה בע״מ" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">ישות משפטית</label><select id="cs-legal" class="w-full h-11 px-3 border rounded-[8px] t-13 bg-white" style="border-color:var(--hairline)"><option value="">בחר…</option><option>חברה בע״מ</option><option>עוסק מורשה</option><option>עמותה</option><option>אחר</option></select></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">ח.פ. / ע.מ.</label><input id="cs-reg" type="text" inputmode="numeric" class="w-full h-11 px-3 border rounded-[8px] t-13 font-mono" style="border-color:var(--hairline)" placeholder="515000000" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">אתר החברה</label><input id="cs-website" type="url" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="https://example.co.il" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">אימייל</label><input id="cs-email" type="email" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="office@example.co.il" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">כתובת</label><input id="cs-address" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="רחוב, עיר" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">שם איש קשר</label><input id="cs-contact-name" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="שם מלא" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">טלפון איש קשר</label><input id="cs-contact-phone" type="tel" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="050-0000000" /></div>
+      </div>
+
+      <div class="t-11 font-semibold uppercase tracking-[0.16em] text-black/40 mt-9 mb-4 border-t pt-6" style="border-color:var(--hairline)">תחום ושירותים</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">תחום העיסוק המרכזי</label><textarea id="cs-domain" class="w-full px-3 py-2 border rounded-[8px] t-13 leading-relaxed" style="border-color:var(--hairline);min-height:76px" placeholder="במה החברה עוסקת בליבה"></textarea></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">פירוט השירותים שהעסק מציע</label><textarea id="cs-services" class="w-full px-3 py-2 border rounded-[8px] t-13 leading-relaxed" style="border-color:var(--hairline);min-height:76px" placeholder="השירותים המרכזיים"></textarea></div>
+      </div>
+      <div class="mt-4"><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">תחומי התמחות</label>
+        <div class="flex items-center gap-2"><input id="cs-spec-input" type="text" class="flex-1 h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="למשל: תשתיות, אנליטיקה — Enter להוספה" /><button type="button" onclick="csAddSpec()" class="h-11 px-4 border rounded-[8px] t-13 font-semibold" style="border-color:var(--hairline)">הוסף</button></div>
+        <div id="cs-spec-chips" class="mt-3 flex flex-wrap gap-1.5"></div>
+      </div>
+      <div class="mt-4"><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-2">אזורי פעילות</label>
+        <div id="cs-regions" class="flex flex-wrap gap-x-5 gap-y-2"></div>
+      </div>
+
+      <div class="t-11 font-semibold uppercase tracking-[0.16em] text-black/40 mt-9 mb-4 border-t pt-6" style="border-color:var(--hairline)">נתוני כשירות למכרזים</div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">שנות ניסיון של המומחה הבכיר</label><input id="cs-exp-years" type="number" min="0" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="לדוגמה: 12" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">עובדים מוסמכים (רו״ח/עו״ד)</label><input id="cs-cert-staff" type="number" min="0" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="מספר" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">ניסיון עם גופים ציבוריים</label><select id="cs-public" class="w-full h-11 px-3 border rounded-[8px] t-13 bg-white" style="border-color:var(--hairline)"><option value="">—</option><option>כן</option><option>לא</option></select></div>
+        <div class="md:col-span-2"><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">תואר מקצועי/אקדמי של בעל התפקיד המרכזי</label><input id="cs-role-title" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="למשל: מהנדס אזרחי, רו״ח" /></div>
+        <div><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">מחזור כספי ממוצע (3 שנים)</label><input id="cs-turnover" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="למשל: ₪5M" /></div>
+      </div>
+      <div class="mt-4"><label class="block t-11 font-semibold uppercase tracking-[0.14em] text-black/55 mb-1.5">לקוחות בולטים בשנים האחרונות</label><textarea id="cs-clients" class="w-full px-3 py-2 border rounded-[8px] t-13 leading-relaxed" style="border-color:var(--hairline);min-height:64px" placeholder="גופים / רשויות / חברות מובילות שעבדתם מולם"></textarea></div>
+
+      <div class="mt-10 flex items-center justify-between gap-4 border-t pt-6" style="border-color:var(--hairline)">
+        <a onclick="go('welcome')" class="t-12 font-semibold text-black/60 cursor-pointer">חזרה</a>
+        <div class="flex items-center gap-3"><span id="cs-hint" class="t-11 text-black/50"></span><button id="cs-submit" onclick="companySave()" class="inline-flex items-center gap-2 text-white t-13 font-semibold px-6 h-11 rounded-[8px]" style="background:var(--signal)">המשך להעלאה →</button></div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<script>
+  let csSpecs = [];
+  let csReturn = null; // 'settings' כשמגיעים מעריכה, אחרת המשך אונבורדינג
+  function csRenderChips(){
+    document.getElementById('cs-spec-chips').innerHTML = csSpecs.map((s,i)=>`<span class="t-11 h-7 inline-flex items-center gap-1.5 px-2.5 rounded-full font-semibold" style="background:var(--signal-8);color:var(--signal)">${s}<button onclick="csRemoveSpec(${i})" class="text-black/30 hover:text-rose-600">✕</button></span>`).join('');
+  }
+  function csAddSpec(){
+    const inp=document.getElementById('cs-spec-input'); const v=(inp.value||'').trim();
+    if(v && !csSpecs.includes(v)){ csSpecs.push(v); csRenderChips(); }
+    inp.value=''; inp.focus();
+  }
+  function csRemoveSpec(i){ csSpecs.splice(i,1); csRenderChips(); }
+
+  const CS_REGIONS=['צפון','חיפה','שרון','גוש דן','ירושלים','שפלה','דרום','כל הארץ'];
+  (function csInitRegions(){
+    const el=document.getElementById('cs-regions'); if(!el) return;
+    el.innerHTML = CS_REGIONS.map(r=>`<label class="inline-flex items-center gap-1.5 t-13 cursor-pointer"><input type="checkbox" class="cs-region w-4 h-4" value="${r}" style="accent-color:var(--signal)" />${r}</label>`).join('');
+  })();
+
+  const CS_FIELDS = { 'cs-name':'name','cs-legal':'legal_entity','cs-reg':'reg_no','cs-address':'address','cs-website':'website','cs-email':'email','cs-contact-name':'contact_name','cs-contact-phone':'contact_phone','cs-domain':'main_domain','cs-services':'services','cs-exp-years':'senior_experience_years','cs-cert-staff':'certified_staff','cs-public':'public_sector_experience','cs-role-title':'key_person_title','cs-turnover':'avg_turnover','cs-clients':'notable_clients' };
+
+  async function renderCompanySetup(){
+    const c = await window.API.company({});
+    for(const [id,key] of Object.entries(CS_FIELDS)){ const e=document.getElementById(id); if(e) e.value = c[key]||''; }
+    csSpecs = Array.isArray(c.specialties)? c.specialties.slice() : [];
+    csRenderChips();
+    const regs = Array.isArray(c.regions)? c.regions : [];
+    document.querySelectorAll('.cs-region').forEach(cb=>{ cb.checked = regs.includes(cb.value); });
+    const editing = csReturn==='settings';
+    document.getElementById('cs-title').textContent = editing? 'עריכת פרטי החברה' : 'ספרו לנו על החברה';
+    document.getElementById('cs-submit').textContent = editing? 'שמור שינויים' : 'המשך להעלאה →';
+    document.getElementById('cs-steps').style.display = editing? 'none' : '';
+    document.getElementById('cs-step').style.visibility = editing? 'hidden' : '';
+    document.getElementById('cs-hint').textContent='';
+  }
+
+  async function companySave(){
+    const hint=document.getElementById('cs-hint');
+    const payload={};
+    for(const [id,key] of Object.entries(CS_FIELDS)){ const e=document.getElementById(id); payload[key]=e?e.value.trim():''; }
+    payload.specialties=csSpecs;
+    payload.regions=[...document.querySelectorAll('.cs-region:checked')].map(c=>c.value);
+    payload.onboarded=true;
+    const btn=document.getElementById('cs-submit'); btn.disabled=true;
+    try{
+      await window.API.updateCompany(payload);
+      const back = csReturn; csReturn=null;
+      go(back==='settings' ? 'settings' : 'upload');
+    }catch(e){ hint.textContent='שמירה נכשלה: '+e.message; hint.style.color='#B91C1C'; }
+    finally{ btn.disabled=false; }
+  }
+  window.csAddSpec=csAddSpec; window.csRemoveSpec=csRemoveSpec; window.companySave=companySave; window.renderCompanySetup=renderCompanySetup;
+  window.editCompany=function(){ csReturn='settings'; go('company-setup'); };
+  // Enter בשדה תחומי התמחות מוסיף chip
+  document.addEventListener('keydown',function(e){ if(e.key==='Enter' && document.activeElement && document.activeElement.id==='cs-spec-input'){ e.preventDefault(); csAddSpec(); }});
+</script>
+
+<!-- ============================= UPLOAD ============================= -->
+<section data-screen="upload">
+  <div class="min-h-dvh bg-white">
+    <header class="border-b" style="border-color:var(--hairline)"><div class="mx-auto max-w-[1200px] px-8 h-14 flex items-center justify-between"><a onclick="go('company-setup')" class="inline-flex items-center gap-2 t-12 font-semibold text-black/65 hover:text-black cursor-pointer">→ חזרה</a><span class="t-11 font-semibold uppercase tracking-[0.16em]" style="color:var(--signal)">שלב 02 מתוך 03</span></div>
+      <div class="mx-auto max-w-[1200px] px-8 pb-4"><ol class="flex items-center gap-3">
+        <li class="flex-1 flex items-center gap-3"><div class="flex items-center gap-2"><span class="inline-grid place-items-center w-6 h-6 rounded-full t-11 font-mono font-semibold text-white" style="background:oklch(0.62 0.15 155)">✓</span><span class="t-12 font-semibold text-black/60">זהות החברה</span></div><span class="flex-1 h-px" style="background:var(--signal)"></span></li>
+        <li class="flex-1 flex items-center gap-3"><div class="flex items-center gap-2"><span class="inline-grid place-items-center w-6 h-6 rounded-full t-11 font-mono font-semibold text-white" style="background:var(--signal)">2</span><span class="t-12 font-semibold" style="color:var(--signal)">העלאת מסמכים</span></div><span class="flex-1 h-px" style="background:var(--hairline)"></span></li>
+        <li class="flex-1 flex items-center gap-3"><div class="flex items-center gap-2"><span class="inline-grid place-items-center w-6 h-6 rounded-full t-11 font-mono font-semibold bg-black/[0.06] text-black/60">3</span><span class="t-12 text-black/55">סקירה</span></div></li>
+      </ol></div>
+    </header>
+    <main class="mx-auto max-w-[960px] px-8 pt-12 pb-24">
+      <div class="t-11 font-semibold uppercase tracking-[0.2em]" style="color:var(--signal)">העלאת מסמכים</div>
+      <h1 class="mt-3 font-display t-32 font-semibold">העלה את מסמכי החברה</h1>
+      <p class="mt-3 t-13 text-black/65 max-w-[660px]">גררו כל מסמך לסל המתאים — או לאזור הכללי, והמערכת תסווג לבד. אין חובה לסווג הכל; אפשר לתקן בכל רגע.</p>
+
+      <div id="up-readiness" class="mt-8"></div>
+
+      <div id="up-cats" class="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+
+      <div id="up-drop" class="mt-5 rounded-[8px] border border-dashed p-6 text-center cursor-pointer transition-colors" style="border-color:var(--hairline);background:#FCFCFB"><div class="t-13 font-medium">לא בטוחים לאיזו קטגוריה? גררו לכאן <span class="text-black/50">— המערכת תסווג אוטומטית</span></div><div class="t-12 text-black/50 mt-1">PDF · DOCX · XLSX · TXT · עד 50MB</div></div>
+      <input id="up-file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" multiple class="hidden" />
+      <div id="up-list" class="mt-6 space-y-2"></div>
+      <div class="mt-12 flex items-center justify-between gap-4 border-t pt-6" style="border-color:var(--hairline)"><button class="t-12 font-semibold text-black/60">שמור ואחזור מאוחר</button><button id="up-continue" onclick="go('review')" class="inline-flex items-center gap-2 text-white t-13 font-semibold px-6 h-11 rounded-[8px] opacity-40 pointer-events-none" style="background:var(--signal)">המשך לסקירה</button></div>
+    </main>
+  </div>
+</section>
+
+<!-- ============================= REVIEW ============================= -->
+<section data-screen="review">
+  <div class="min-h-dvh bg-white">
+    <header class="border-b" style="border-color:var(--hairline)"><div class="mx-auto max-w-[1200px] px-8 h-14 flex items-center justify-between"><a onclick="go('upload')" class="inline-flex items-center gap-2 t-12 font-semibold text-black/65 hover:text-black cursor-pointer">→ חזרה להעלאה</a><span class="t-11 font-semibold uppercase tracking-[0.16em]" style="color:var(--signal)">שלב 03 מתוך 03</span></div></header>
+    <main class="mx-auto max-w-[1080px] px-8 pt-12 pb-24">
+      <div class="t-11 font-semibold uppercase tracking-[0.2em]" style="color:var(--signal)">סקירה · שלב אחרון</div>
+      <h1 class="mt-3 font-display t-32 font-semibold">הנה מה שהמערכת יודעת עליכם</h1>
+      <p class="mt-3 t-13 text-black/65 max-w-[680px]">עברו על מה שחילצנו ותקנו כל פרט — הדיוק כאן קובע את איכות הטיוטות. המערכת משתמשת אך ורק במה שאישרתם.</p>
+
+      <div id="rv-readiness" class="mt-8"></div>
+      <div id="rv-clarify" class="mt-4"></div>
+
+      <section class="mt-10">
+        <div class="flex items-center justify-between border-b pb-3 mb-4" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">פרופיל החברה</h2><button onclick="editCompany()" class="t-12 font-semibold" style="color:var(--signal)">✎ ערוך</button></div>
+        <div id="rv-company"></div>
+      </section>
+
+      <section class="mt-10">
+        <div class="flex items-center justify-between border-b pb-3 mb-4" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">פרויקטים וניסיון</h2><button onclick="kbAddProject&&kbAddProject()" class="t-12 font-semibold" style="color:var(--signal)">+ הוסף</button></div>
+        <div id="rv-projects" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </section>
+
+      <section class="mt-10">
+        <div class="flex items-center justify-between border-b pb-3 mb-4" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">אישורים ותקנים</h2><button onclick="rvAddCert&&rvAddCert()" class="t-12 font-semibold" style="color:var(--signal)">+ הוסף</button></div>
+        <ul id="rv-certs" class="border rounded-[8px] divide-y overflow-hidden" style="border-color:var(--hairline)"></ul>
+      </section>
+
+      <section class="mt-10">
+        <div class="border-b pb-3 mb-4" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">מסמכים במאגר</h2></div>
+        <div id="rv-docs"></div>
+      </section>
+      <div class="mt-14 flex items-center justify-between gap-4 border-t pt-6" style="border-color:var(--hairline)"><a onclick="go('upload')" class="t-12 font-semibold text-black/60 cursor-pointer">חזור להעלאה</a><button onclick="go('dashboard')" class="inline-flex items-center gap-2 text-white t-13 font-semibold px-6 h-11 rounded-[8px]" style="background:var(--signal)">✓ אישור — מוכן לעבודה</button></div>
+    </main>
+  </div>
+</section>
+
+<!-- ============================= TENDER NEW ============================= -->
+<section data-screen="tender-new">
+  <div class="min-h-screen" style="background:var(--page)">
+    <div class="max-w-[1080px] mx-auto px-8 py-10">
+      <div class="flex items-center justify-between mb-10"><a onclick="go('dashboard')" class="inline-flex items-center gap-2 t-13 text-black/60 hover:text-black cursor-pointer">→ חזרה ללוח הבקרה</a><div class="t-11 text-black/50 tracking-wide uppercase">הזנת מכרז</div></div>
+      <h1 class="text-[38px] leading-[1.15] font-semibold tracking-tight mb-4">הזנת מכרז חדש</h1>
+      <p class="t-15 text-black/60 max-w-[720px] mb-10">העלה את מסמך המכרז והמערכת תפענח את תנאי הסף והדרישות מול הזיכרון הארגוני שלך.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <button id="tn-opt-upload" onclick="tnMode('upload')" class="text-right p-5 rounded-[8px] border bg-white card-soft" style="border-color:var(--signal);box-shadow:0 0 0 2px var(--signal-8)"><div class="flex items-start gap-3"><div class="w-10 h-10 rounded-[6px] flex items-center justify-center text-white shrink-0" style="background:var(--signal)">⬆</div><div><div class="t-15 font-medium mb-1">העלאת מסמך</div><div class="t-13 text-black/60">PDF · DOCX · XLSX — כתב כמויות, מפרט, תנאי סף</div></div></div></button>
+        <button id="tn-opt-paste" onclick="tnMode('paste')" class="text-right p-5 rounded-[8px] border bg-white card-soft" style="border-color:var(--hairline)"><div class="flex items-start gap-3"><div class="w-10 h-10 rounded-[6px] flex items-center justify-center bg-black/[0.05] text-black/55 shrink-0">📋</div><div><div class="t-15 font-medium mb-1">הדבקת טקסט</div><div class="t-13 text-black/60">העתק את גוף המכרז ישירות מהמייל או מהפורטל</div></div></div></button>
+      </div>
+      <div id="tn-drop" class="rounded-[8px] border-2 border-dashed p-12 text-center bg-white mb-4 cursor-pointer transition-colors" style="border-color:#D6D6CE"><div class="text-3xl mb-3 text-black/40">⬆</div><div class="t-15 font-medium mb-1">גרור קובץ מכרז לכאן, או לחץ לבחירה</div><div class="t-13 text-black/50">PDF · DOCX · XLSX · TXT — עד 50MB</div></div>
+      <input id="tn-file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" class="hidden" />
+      <textarea id="tn-text" class="hidden w-full rounded-[8px] border p-4 t-13 mb-4 leading-relaxed" style="border-color:var(--hairline);min-height:220px" placeholder="הדבק כאן את גוף המכרז — תנאי סף, דרישות, מפרט..."></textarea>
+      <div id="tn-list" class="space-y-2 mb-8"></div>
+      <div class="flex items-center gap-4"><button id="tn-submit" onclick="submitTenderNew()" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ פענח מכרז</button><div id="tn-hint" class="t-11 text-black/50">הפענוח יפרק את הדרישות וישווה למאגר הידע שלך.</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    const drop=document.getElementById('tn-drop'), input=document.getElementById('tn-file'),
+          list=document.getElementById('tn-list'), textarea=document.getElementById('tn-text');
+    if(!drop||!input) return;
+    let selected=null;
+    const fmt=b=> b<1024? b+' B' : b<1048576? (b/1024).toFixed(0)+' KB' : (b/1048576).toFixed(1)+' MB';
+    const icon=n=>{const e=(n.split('.').pop()||'').toLowerCase(); return (e==='xlsx'||e==='xls')?'📊':(e==='pdf')?'📕':'📄';};
+    const reset=()=>{drop.style.borderColor='#D6D6CE';drop.style.background='#fff';};
+
+    function renderSelected(){
+      list.innerHTML = selected
+        ? `<div class="p-3 flex items-center gap-3 border rounded-[8px] bg-white" style="border-color:var(--hairline)"><span class="grid place-items-center w-9 h-9 rounded-[8px] bg-black/[0.04] shrink-0">${icon(selected.name)}</span><div class="flex-1 min-w-0"><div class="t-13 font-semibold truncate">${selected.name}</div><div class="t-12 inline-flex items-center gap-1.5 text-emerald-700">✓ נבחר · <span class="text-black/60">${fmt(selected.size)}</span></div></div><button id="tn-rm" class="t-12 font-semibold text-black/45 hover:text-rose-600 px-2">הסר</button></div>`
+        : '';
+      const rm=document.getElementById('tn-rm'); if(rm) rm.addEventListener('click',()=>{selected=null;input.value='';renderSelected();});
+    }
+
+    // מצב: העלאה מול הדבקה
+    window.tnMode=function(mode){
+      const up=document.getElementById('tn-opt-upload'), pa=document.getElementById('tn-opt-paste');
+      const on=(el)=>{el.style.borderColor='var(--signal)';el.style.boxShadow='0 0 0 2px var(--signal-8)';};
+      const off=(el)=>{el.style.borderColor='var(--hairline)';el.style.boxShadow='none';};
+      if(mode==='paste'){ on(pa);off(up); drop.classList.add('hidden'); list.classList.add('hidden'); textarea.classList.remove('hidden'); }
+      else { on(up);off(pa); drop.classList.remove('hidden'); list.classList.remove('hidden'); textarea.classList.add('hidden'); }
+    };
+
+    // שליחה: קובץ או טקסט → פענוח בשרת → מסך ניתוח
+    window.submitTenderNew=async function(){
+      const btn=document.getElementById('tn-submit'), hint=document.getElementById('tn-hint');
+      const text=(textarea.value||'').trim();
+      if(!selected && !text){ hint.textContent='בחר קובץ מכרז או הדבק טקסט תחילה.'; hint.style.color='#B45309'; return; }
+      btn.disabled=true; btn.innerHTML='<span class="spin inline-block">◠</span> מפענח...';
+      hint.style.color=''; hint.textContent='מפרק דרישות ומשווה למאגר...';
+      try{
+        const {tender}=await window.API.submitTender(selected?{file:selected,text}:{text});
+        window.currentTenderId=tender.id;
+        selected=null; input.value=''; textarea.value=''; renderSelected();
+        go('tender-analysis');
+      }catch(e){ hint.textContent='הפענוח נכשל: '+e.message; hint.style.color='#B91C1C'; }
+      finally{ btn.disabled=false; btn.innerHTML='✦ פענח מכרז'; }
+    };
+
+    drop.addEventListener('click',()=>input.click());
+    input.addEventListener('change',e=>{selected=e.target.files[0]||null;renderSelected();});
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='var(--signal)';drop.style.background='var(--signal-3)';}));
+    ['dragleave','dragend'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();reset();}));
+    drop.addEventListener('drop',e=>{e.preventDefault();reset();if(e.dataTransfer&&e.dataTransfer.files.length){selected=e.dataTransfer.files[0];renderSelected();}});
+  })();
+
+  // ---- מסך ניתוח מכרז (S07) — נטען מהשרת ----
+  async function renderAnalysis(){
+    let id = window.currentTenderId;
+    if(!id){ const list=await window.API.tenders([]); if(list[0]){ id=list[0].id; window.currentTenderId=id; } }
+    if(!id) return;
+    const data = await window.API.tenderAnalysis(id, null);
+    if(!data) return;
+    const t=data.tender, set=(k,v)=>{const el=document.getElementById(k); if(el) el.textContent=v;};
+    set('an-code','מכרז '+t.code); set('an-name',t.name); set('an-issuer',t.issuer);
+    set('an-deadline', t.days!=null? ('מועד הגשה: '+t.days+' ימים') : 'מועד הגשה: —');
+    const score=data.matchScore ?? t.match_score ?? 0;
+    set('an-score',score+'%');
+    const ring=document.getElementById('an-ring'); if(ring) ring.setAttribute('stroke-dashoffset', String(Math.round(383*(1-score/100))));
+    const band = score>=75?['התאמה גבוהה','הניסיון שלך רלוונטי מאוד למכרז זה.'] : score>=50?['התאמה בינונית','יש בסיס טוב, אך כמה פערים להשלמה.'] : ['התאמה נמוכה','חסרים כמה מרכיבי ליבה — שקול היטב.'];
+    set('an-score-title',band[0]); set('an-score-sub',band[1]);
+    const met=data.met||[], gaps=data.gaps||[], fails=data.fails||[], total=met.length+gaps.length+fails.length||1;
+    set('an-met-count',met.length); set('an-gap-count',gaps.length); set('an-fail-count',fails.length);
+    document.getElementById('an-met').innerHTML = met.length? met.map(m=>`<li class="flex items-start gap-2.5"><span style="color:oklch(0.62 0.15 155)">✓</span>${m}</li>`).join('') : '<li class="t-12 text-black/45">—</li>';
+    document.getElementById('an-gaps').innerHTML = gaps.length? gaps.map(g=>`<li><div class="flex items-start gap-2.5 font-medium mb-1"><span style="color:var(--amber-signal)">⚠</span>${g.text||g}</div>${g.hint?`<div class="pr-[26px] t-12 text-black/55">${g.hint}</div>`:''}</li>`).join('') : '<li class="t-12 text-black/45">אין פערים — כיסוי מלא</li>';
+    document.getElementById('an-fails').innerHTML = fails.length? fails.map(f=>`<div class="flex items-start gap-2.5 t-13 mb-1"><span style="color:oklch(0.58 0.22 25)">✕</span>${f.text||f}</div>`).join('') : '<span class="w-1.5 h-1.5 rounded-full bg-black/20"></span>אין פערים קריטיים';
+
+    // סיכום מכרז מובנה (B11)
+    const sumItems=[['ערבות',t.guarantee],['משך',t.duration],['מועד הגשה',t.deadline||(t.days!=null?('בעוד '+t.days+' ימים'):null)],['סיווג נדרש',t.classification],['מחזור מינ׳',t.min_turnover]].filter(x=>x[1]);
+    const sumEl=document.getElementById('an-summary');
+    if(sumEl) sumEl.innerHTML = sumItems.length ? `<div class="rounded-[8px] border bg-white card-soft p-4" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/45 mb-3">סיכום מכרז</div><div class="grid grid-cols-2 md:grid-cols-5 gap-4">${sumItems.map(([l,v])=>`<div><div class="t-11 text-black/50">${l}</div><div class="t-13 font-medium mt-0.5">${v}</div></div>`).join('')}</div></div>` : '';
+
+    // בדיקת תנאי סף (B10) — מוצלב מול פרופיל החברה
+    const checks=(data.thresholds&&data.thresholds.checks)||[];
+    const stColor={met:'oklch(0.62 0.15 155)',gap:'oklch(0.58 0.22 25)',unknown:'var(--amber-signal)'}, stIcon={met:'✓',gap:'✕',unknown:'?'};
+    const thEl=document.getElementById('an-thresholds');
+    if(thEl) thEl.innerHTML = checks.length ? `<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-3"><h2 class="t-18 font-semibold">בדיקת תנאי סף</h2><div class="t-11 text-black/50">מוצלב מול פרופיל החברה</div></div><div>${checks.map(c=>`<div class="flex items-center justify-between gap-4 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2 t-13"><span style="color:${stColor[c.status]||'var(--amber-signal)'}">${stIcon[c.status]||'?'}</span><span class="font-medium">${c.label}</span></div><div class="t-12 ${c.status==='met'?'text-emerald-700':c.status==='gap'?'text-rose-600':'text-amber-700'}">${c.have}</div></div>`).join('')}</div></div>` : '';
+
+    // דגלים אדומים (B10)
+    const flags=(data.redFlags&&data.redFlags.flags)||[];
+    const rfEl=document.getElementById('an-redflags');
+    if(rfEl) rfEl.innerHTML = flags.length ? `<div class="rounded-[8px] border p-5" style="border-color:oklch(0.58 0.22 25 / 0.4);background:oklch(0.58 0.22 25 / 0.04)"><div class="flex items-center gap-2 mb-3"><h2 class="t-18 font-semibold" style="color:oklch(0.5 0.2 25)">🚩 דגלים אדומים</h2><span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full" style="background:oklch(0.58 0.22 25 / 0.12);color:oklch(0.5 0.2 25)">${flags.length}</span></div><div class="space-y-2.5">${flags.map(f=>`<div class="flex items-start gap-3"><span class="mt-1 w-2 h-2 rounded-full shrink-0" style="background:${f.severity==='high'?'oklch(0.58 0.22 25)':'var(--amber-signal)'}"></span><div><div class="t-13 font-medium">${f.label}</div><div class="t-12 text-black/60">${f.detail}</div></div></div>`).join('')}</div></div>` : '';
+
+    const reco=document.getElementById('an-reco'), goDecision=score>=60;
+    if(goDecision){
+      reco.style.borderColor='oklch(0.62 0.15 155 / 0.35)'; reco.style.background='oklch(0.62 0.15 155 / 0.06)';
+      reco.innerHTML=`<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:oklch(0.62 0.15 155 / 0.14);color:oklch(0.48 0.14 155)">👍</div><div class="flex-1"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.62 0.15 155 / 0.15);color:oklch(0.42 0.14 155)">המלצת המערכת</span><h3 class="t-24 font-semibold tracking-tight mt-2 mb-1.5">מומלץ לגשת</h3><p class="t-13 text-black/70">עומדים ב-${met.length} מתוך ${total} דרישות. הפערים ניתנים להשלמה.</p></div>`;
+    } else {
+      reco.style.borderColor='oklch(0.72 0.16 70 / 0.4)'; reco.style.background='oklch(0.72 0.16 70 / 0.06)';
+      reco.innerHTML=`<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">🤔</div><div class="flex-1"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">המלצת המערכת</span><h3 class="t-24 font-semibold tracking-tight mt-2 mb-1.5">לשקול בזהירות</h3><p class="t-13 text-black/70">רק ${met.length} מתוך ${total} דרישות מכוסות. ודא שהפערים ניתנים לסגירה בזמן.</p></div>`;
+    }
+  }
+  window.renderAnalysis=renderAnalysis;
+</script>
+
+<!-- ============================= TENDER ANALYSIS ============================= -->
+<section data-screen="tender-analysis">
+  <div class="min-h-screen" style="background:var(--page)">
+    <div class="max-w-[1080px] mx-auto px-8 py-10">
+      <div class="flex items-center justify-between mb-8"><a onclick="go('dashboard')" class="inline-flex items-center gap-2 t-13 text-black/60 hover:text-black cursor-pointer">→ חזרה ללוח הבקרה</a><div class="t-11 text-black/50 tracking-wide uppercase">ניתוח מכרז · Go / No-Go</div></div>
+      <div class="mb-8"><div id="an-code" class="t-11 font-medium tracking-wide text-black/50 mb-2">—</div><h1 id="an-name" class="text-[34px] leading-[1.2] font-semibold tracking-tight mb-3">—</h1><div class="flex items-center gap-2 t-13 text-black/60"><span id="an-issuer">—</span><span class="text-black/25">·</span><span class="inline-flex items-center gap-1.5 font-medium" style="color:var(--amber-signal)"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--amber-signal)"></span><span id="an-deadline">—</span></span></div></div>
+      <div id="an-summary" class="mb-8"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 mb-10">
+        <div class="rounded-[8px] border bg-white card-soft p-5 flex items-center gap-5" style="border-color:var(--hairline)">
+          <div class="relative shrink-0" style="width:132px;height:132px"><svg width="132" height="132" style="transform:rotate(-90deg)"><circle cx="66" cy="66" r="61" fill="none" stroke="var(--hairline)" stroke-width="10"/><circle id="an-ring" cx="66" cy="66" r="61" fill="none" stroke="var(--signal)" stroke-width="10" stroke-linecap="round" stroke-dasharray="383" stroke-dashoffset="383" style="transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1)"/></svg><div class="absolute inset-0 flex flex-col items-center justify-center"><div id="an-score" class="text-[32px] font-semibold tracking-tight leading-none">—</div><div class="t-11 text-black/50 mt-1">ציון התאמה</div></div></div>
+          <div class="flex-1"><div id="an-score-title" class="t-13 font-medium mb-1.5">—</div><p id="an-score-sub" class="t-13 text-black/60">—</p></div>
+        </div>
+        <div id="an-reco" class="rounded-[8px] border p-5 flex items-start gap-4" style="border-color:var(--hairline)"></div>
+      </div>
+      <div class="mb-10"><div class="flex items-baseline justify-between mb-4"><h2 class="t-24 font-semibold tracking-tight">ניתוח פערים</h2><div class="t-11 text-black/50">מבוסס על הזיכרון הארגוני</div></div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-center justify-between mb-4 pb-3 border-b" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2" style="color:oklch(0.62 0.15 155)">✓ <h3 class="t-13 font-semibold text-black">עומדים בדרישות</h3></div><span id="an-met-count" class="t-11 font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] text-black/60">0</span></div><ul id="an-met" class="space-y-2.5 t-13"></ul></div>
+          <div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-center justify-between mb-4 pb-3 border-b" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2" style="color:var(--amber-signal)">⚠ <h3 class="t-13 font-semibold text-black">פערים להשלמה</h3></div><span id="an-gap-count" class="t-11 font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] text-black/60">0</span></div><ul id="an-gaps" class="space-y-3.5 t-13"></ul></div>
+          <div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-center justify-between mb-4 pb-3 border-b" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2" style="color:oklch(0.58 0.22 25)">✕ <h3 class="t-13 font-semibold text-black">לא עומדים</h3></div><span id="an-fail-count" class="t-11 font-semibold px-2 py-0.5 rounded-full text-black/50" style="background:#FAFAF7">0</span></div><div id="an-fails" class="flex items-center gap-2 t-12 text-black/50"><span class="w-1.5 h-1.5 rounded-full bg-black/20"></span>אין פערים קריטיים</div></div>
+        </div></div>
+      <div id="an-thresholds" class="mb-8"></div>
+      <div id="an-redflags" class="mb-10"></div>
+      <div class="mb-10"><div class="rounded-[8px] border border-dashed p-6" style="border-color:#D6D6CE;background:rgba(255,255,255,0.6)"><div class="flex items-start gap-4"><div class="w-10 h-10 rounded-[6px] bg-black/[0.04] flex items-center justify-center shrink-0 text-black/50">🔒</div><div class="flex-1"><div class="flex items-center gap-2 mb-1.5"><h3 class="t-15 font-semibold">ניתוח מתחרים</h3><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></div><p class="t-12 text-black/55 max-w-[640px]">ניתוח מתחרים וסיכויי זכייה מבוסס נתוני שוק — יתווסף בשלב הבא (Phase 2).</p></div></div></div></div>
+      <div class="flex flex-wrap items-center gap-3 pt-6 border-t" style="border-color:var(--hairline)"><button onclick="go('draft-mapping')" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ צור טיוטה</button><button onclick="go('dashboard')" class="inline-flex items-center gap-2 h-12 px-5 rounded-[8px] border bg-white card-soft t-13 font-medium" style="border-color:#D6D6CE">🗄 ארכב — לא נגש</button><div class="t-11 text-black/50 mr-auto">הטיוטה תיווצר על סמך הזיכרון הארגוני בלבד — ללא הזיות.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= DRAFT MAPPING (S08) ============================= -->
+<section data-screen="draft-mapping">
+  <div class="min-h-screen" style="background:var(--page)">
+    <div class="max-w-[1080px] mx-auto px-8 py-10">
+      <div class="flex items-center justify-between mb-8"><a onclick="go('tender-analysis')" class="inline-flex items-center gap-2 t-13 text-black/60 hover:text-black cursor-pointer">→ חזרה לניתוח המכרז</a><div class="t-11 text-black/50 tracking-wide uppercase">מיפוי לפני יצירה · מכרז #44/2026</div></div>
+      <div class="mb-6"><div class="t-11 font-medium text-black/50 mb-2">מכרז #44/2026 · משרד התחבורה</div><h1 class="text-[32px] leading-[1.2] font-semibold tracking-tight mb-3">לפני שיוצרים — כך אשתמש בנתונים שלך</h1><p class="t-15 text-black/65 max-w-[720px]">כל דרישת מכרז ממופה למקור מדויק בזיכרון הארגוני. עבור על ההתאמות, שנה מה שצריך — ורק אז ניצור את הטיוטה. <span class="font-medium text-black/80">שום דבר לא יומצא.</span></p></div>
+
+      <!-- coverage strip -->
+      <div class="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-[8px] border bg-white card-soft" style="border-color:var(--hairline)">
+        <span id="mp-ok" class="inline-flex items-center gap-1.5 t-12 font-medium text-emerald-700"><span style="color:oklch(0.62 0.15 155)">✓</span>—</span>
+        <span class="text-black/20">·</span>
+        <span id="mp-gap" class="inline-flex items-center gap-1.5 t-12 font-medium" style="color:var(--amber-signal)">⚠ —</span>
+        <span id="mp-coverage" class="mr-auto t-11 font-mono text-black/50">כיסוי מיפוי: —</span>
+      </div>
+
+      <!-- mapping table -->
+      <div class="rounded-[8px] border bg-white card-soft overflow-hidden mb-8" style="border-color:var(--hairline)">
+        <div class="hidden md:grid grid-cols-[1fr_200px_1fr_150px] gap-4 px-5 py-3 border-b t-10 font-semibold uppercase tracking-[0.12em] text-black/45" style="border-color:var(--hairline);background:#FAFAF7"><div>דרישת המכרז</div><div>מקור בזיכרון</div><div>ממד ספציפי</div><div>פעולה</div></div>
+        <div id="mapping-rows"></div>
+      </div>
+
+      <!-- reassurance -->
+      <div class="rounded-[8px] border border-dashed p-5 mb-10 flex items-start gap-4" style="border-color:#D6D6CE;background:rgba(255,255,255,0.6)"><div class="w-9 h-9 rounded-[8px] bg-black/[0.04] flex items-center justify-center shrink-0 text-black/55">🔒</div><div class="flex-1"><div class="t-13 font-semibold mb-1">כך נשמר עיקרון האפס-הזיות</div><p class="t-12 text-black/60 max-w-[720px]">כל פסקה בטיוטה תיווצר אך ורק מהממדים הממופים כאן — כל טענה מקבלת הפניה למקור. דרישה ללא מקור לא "תושלם" על ידי המערכת; היא תסומן להשלמה ידנית שלך.</p></div></div>
+
+      <input id="mp-material" type="file" class="hidden" />
+      <div class="flex flex-wrap items-center gap-3 pt-6 border-t" style="border-color:var(--hairline)"><button id="mp-create" onclick="createDraft()" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ אשר וצור טיוטה</button><button onclick="go('tender-analysis')" class="inline-flex items-center gap-2 h-12 px-5 rounded-[8px] border bg-white card-soft t-13 font-medium" style="border-color:#D6D6CE">→ חזרה</button><div class="t-11 text-black/50 mr-auto">היצירה תתבסס על המיפוי הזה בלבד.</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const MP_CHIP = d=>`<span class="t-11 h-6 inline-flex items-center px-2 rounded-[3px] border font-semibold" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${d}</span>`;
+  let mpPendingReqId=null; // דרישה שממתינה להעלאת חומר
+
+  async function renderMapping(){
+    const id=window.currentTenderId; if(!id){ if(!window.API) return; const l=await window.API.tenders([]); if(l.length){window.currentTenderId=l[l.length-1].id;} }
+    const data = await window.API.tenderMapping(window.currentTenderId, null);
+    const rowsEl=document.getElementById('mapping-rows'); if(!rowsEl||!data) return;
+    const okCount=data.mapping.filter(m=>m.hasSource).length;
+    const manualCount=data.mapping.filter(m=>!m.hasSource&&m.manualText).length;
+    const gapCount=data.mapping.filter(m=>!m.resolved).length;
+    document.getElementById('mp-ok').innerHTML=`<span style="color:oklch(0.62 0.15 155)">✓</span>${okCount} דרישות עם התאמה מלאה${manualCount?` · ${manualCount} הושלמו ידנית`:''}`;
+    document.getElementById('mp-gap').innerHTML= gapCount?`⚠ ${gapCount} דרישות ללא מקור — דורשות השלמה`:'✓ כל הדרישות מכוסות';
+    document.getElementById('mp-gap').style.color = gapCount?'var(--amber-signal)':'oklch(0.42 0.14 155)';
+    document.getElementById('mp-coverage').textContent=`כיסוי מיפוי: ${data.coverage}%`;
+
+    rowsEl.innerHTML = data.mapping.map(m=>{
+      if(m.hasSource){
+        return `<div class="md:grid md:grid-cols-[1fr_200px_1fr_150px] gap-4 px-5 py-4 border-t items-center flex flex-wrap" style="border-color:var(--hairline-soft)">
+          <div class="t-13 font-medium">${m.requirement}</div>
+          <div class="t-13 text-black/75 inline-flex items-center gap-1.5"><span style="color:oklch(0.62 0.15 155)">✓</span>${m.project}</div>
+          <div class="flex flex-wrap gap-1.5">${(m.dimensions||[]).map(MP_CHIP).join(' ')}</div>
+          <div class="t-12 text-black/40">—</div>
+        </div>`;
+      }
+      if(m.manualText){
+        return `<div class="md:grid md:grid-cols-[1fr_200px_1fr_150px] gap-4 px-5 py-4 border-t items-center flex flex-wrap" style="border-color:var(--hairline-soft);background:var(--signal-3)">
+          <div class="t-13 font-medium">${m.requirement}</div>
+          <div class="t-13 inline-flex items-center gap-1.5 font-medium" style="color:var(--signal)"><span>✎</span>הושלם ידנית</div>
+          <div class="t-12 text-black/70 italic">"${m.manualText.slice(0,80)}${m.manualText.length>80?'…':''}"</div>
+          <div><button onclick="mpClear('${m.id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[6px] h-8 px-3 bg-white" style="border-color:var(--hairline)">בטל</button></div>
+        </div>`;
+      }
+      return `<div class="md:grid md:grid-cols-[1fr_200px_1fr_150px] gap-4 px-5 py-4 border-t items-start flex flex-wrap" style="border-color:var(--hairline-soft);background:oklch(0.72 0.16 70 / 0.05)">
+        <div class="t-13 font-medium">${m.requirement}</div>
+        <div class="t-13 inline-flex items-center gap-1.5 font-medium" style="color:var(--amber-signal)"><span>⚠</span>לא נמצא מקור</div>
+        <div class="t-12 text-black/55 italic">אין ממד תואם בזיכרון הארגוני</div>
+        <div class="flex flex-col gap-1.5">
+          <button onclick="mpManual('${m.id}')" class="t-12 font-semibold h-8 px-3 rounded-[6px] border bg-white" style="border-color:oklch(0.72 0.16 70 / 0.5);color:oklch(0.45 0.12 70)">✎ השלם ידנית</button>
+          <button onclick="mpUpload('${m.id}')" class="t-12 font-semibold h-8 px-3 rounded-[6px] border bg-white" style="border-color:var(--signal-20);color:var(--signal)">⬆ העלה חומר</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function mpManual(reqId){
+    const txt=prompt('כתוב את תשובתך לדרישה זו (טקסט חופשי — ייכנס לטיוטה כפי שהוא):');
+    if(!txt||!txt.trim()) return;
+    try{ await window.API.resolveGap(window.currentTenderId,reqId,txt.trim()); renderMapping(); }
+    catch(e){ alert('שמירה נכשלה: '+e.message); }
+  }
+  async function mpClear(reqId){
+    try{ await window.API.clearGap(window.currentTenderId,reqId); renderMapping(); }
+    catch(e){ alert('ביטול נכשל: '+e.message); }
+  }
+  function mpUpload(reqId){ mpPendingReqId=reqId; document.getElementById('mp-material').click(); }
+
+  async function createDraft(){
+    const btn=document.getElementById('mp-create'); const id=window.currentTenderId; if(!id) return;
+    btn.disabled=true; btn.innerHTML='<span class="spin inline-block">◠</span> יוצר טיוטה...';
+    try{
+      const draft=await window.API.generateDraft(id);
+      window.currentDraftId=draft.id;
+      go('tender-draft');
+    }catch(e){ alert('יצירת הטיוטה נכשלה: '+e.message); }
+    finally{ btn.disabled=false; btn.innerHTML='✦ אשר וצור טיוטה'; }
+  }
+
+  // חיווט קלט חומר-הפער
+  (function(){
+    const inp=document.getElementById('mp-material');
+    if(inp) inp.addEventListener('change',async e=>{
+      const files=e.target.files; if(!files.length) return;
+      try{ await window.API.uploadGapMaterial(files); e.target.value=''; renderMapping(); }
+      catch(err){ alert('העלאת החומר נכשלה: '+err.message); }
+    });
+  })();
+
+  window.renderMapping=renderMapping; window.mpManual=mpManual; window.mpClear=mpClear; window.mpUpload=mpUpload; window.createDraft=createDraft;
+
+  // ---- מסך הטיוטה (S09) ----
+  async function renderDraft(){
+    let dId=window.currentDraftId;
+    // אם אין טיוטה עדיין — צור אחת מהמכרז הנוכחי
+    if(!dId && window.currentTenderId){ try{ const d=await window.API.generateDraft(window.currentTenderId); dId=d.id; window.currentDraftId=dId; }catch(e){} }
+    if(!dId) return;
+    const draft=await window.API.draft(dId,null); if(!draft) return;
+    document.getElementById('dr-meta').textContent=`מכרז ${draft.tender_code||''}`;
+    document.getElementById('dr-name').textContent=`טיוטת מענה — ${draft.tender_name||''}`;
+    const secs=draft.sections||[];
+    const auto=secs.filter(s=>!s.needsManual&&!s.manual).length;
+    const manual=secs.filter(s=>s.manual).length;
+    const gaps=secs.filter(s=>s.needsManual).length;
+    document.getElementById('dr-auto').innerHTML=`<span style="color:oklch(0.62 0.15 155)">✓</span>${auto} סעיפים אוטומטיים${manual?` · ${manual} הושלמו ידנית`:''}`;
+    document.getElementById('dr-manual').innerHTML= gaps?`⚠ ${gaps} סעיפים דורשים השלמה ידנית`:'✓ אין פערים פתוחים';
+    document.getElementById('dr-manual').style.color = gaps?'var(--amber-signal)':'oklch(0.42 0.14 155)';
+
+    document.getElementById('dr-toc').innerHTML = secs.map((s,i)=>`<li class="px-2 py-1.5 rounded ${i===0?'font-semibold':'text-black/65 hover:bg-black/5'}" style="${i===0?'background:var(--signal-8);color:var(--signal)':''}">${s.title}</li>`).join('');
+
+    document.getElementById('dr-sections').innerHTML = secs.map(s=>{
+      if(s.needsManual){
+        return `<article class="rounded-[8px] border p-6" style="border-color:oklch(0.72 0.16 70 / 0.4);background:oklch(0.72 0.16 70 / 0.05)">
+          <div class="flex items-center justify-between mb-3"><h2 class="t-18 font-semibold">${s.title}</h2><span class="inline-flex items-center gap-1.5 t-11 font-semibold px-2 h-6 rounded-full" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">⚠ נדרש השלמה ידנית</span></div>
+          <p class="t-15 text-black/60 leading-[1.9] italic">לא נמצא מקור בזיכרון הארגוני לדרישה זו. המערכת אינה ממציאה נתון — יש להשלים במסך המיפוי (ידנית או בהעלאת חומר).</p>
+        </article>`;
+      }
+      const conf = s.confidence!=null
+        ? `<span class="inline-flex items-center gap-1.5 t-11 font-semibold px-2 h-6 rounded-full" style="background:oklch(0.62 0.15 155 / 0.12);color:oklch(0.42 0.14 155)">● ביטחון ${s.confidence}%</span>`
+        : `<span class="inline-flex items-center gap-1.5 t-11 font-semibold px-2 h-6 rounded-full" style="background:var(--signal-8);color:var(--signal)">✎ הושלם ידנית</span>`;
+      const tag = s.manual ? 'הושלם ידנית ע"י המשתמש' : `מבוסס על: ${s.sourceProject}`;
+      return `<article class="rounded-[8px] border bg-white card-soft p-6" style="border-color:var(--hairline)">
+        <div class="flex items-center justify-between mb-3"><h2 class="t-18 font-semibold">${s.title}</h2>${conf}</div>
+        <p class="t-15 text-black/80 leading-[1.9]">${s.body}</p>
+        <div class="mt-3 flex items-center gap-2"><span class="inline-flex items-center gap-1.5 t-11 px-2 h-6 rounded-[3px] border" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${tag}</span></div>
+      </article>`;
+    }).join('');
+
+    document.getElementById('dr-pdf').onclick=()=>window.open(window.API.draftExportUrl(dId,'pdf'),'_blank');
+    document.getElementById('dr-word').onclick=()=>window.open(window.API.draftExportUrl(dId,'docx'),'_blank');
+  }
+  window.renderDraft=renderDraft;
+</script>
+
+<!-- ============================= TENDER DRAFT (S09) ============================= -->
+<section data-screen="tender-draft">
+  <div class="min-h-screen" style="background:var(--page)">
+    <div class="max-w-[1120px] mx-auto px-8 py-10">
+      <div class="flex items-center justify-between mb-8"><a onclick="go('tender-analysis')" class="inline-flex items-center gap-2 t-13 text-black/60 hover:text-black cursor-pointer">→ חזרה לניתוח המכרז</a><div class="t-11 text-black/50 tracking-wide uppercase">טיוטת מענה · מכרז #44/2026</div></div>
+      <div class="mb-6"><div id="dr-meta" class="t-11 font-medium text-black/50 mb-2">—</div><h1 id="dr-name" class="text-[32px] leading-[1.2] font-semibold tracking-tight">טיוטת מענה</h1></div>
+      <div class="flex flex-wrap items-center gap-3 mb-8 p-4 rounded-[8px] border bg-white card-soft" style="border-color:var(--hairline)">
+        <span id="dr-auto" class="inline-flex items-center gap-1.5 t-12 font-medium text-emerald-700"><span style="color:oklch(0.62 0.15 155)">✓</span>—</span>
+        <span class="text-black/20">·</span>
+        <span id="dr-manual" class="inline-flex items-center gap-1.5 t-12 font-medium" style="color:var(--amber-signal)">⚠ —</span>
+        <div class="mr-auto flex items-center gap-2"><button id="dr-pdf" class="inline-flex items-center gap-1.5 h-10 px-4 rounded-[6px] border t-12 font-medium bg-white" style="border-color:#D6D6CE">⤓ הורד PDF</button><button id="dr-word" class="inline-flex items-center gap-1.5 h-10 px-4 rounded-[6px] text-white t-12 font-medium" style="background:var(--signal)">⤓ הורד Word</button><button onclick="go('post-submission')" class="inline-flex items-center gap-1.5 h-10 px-4 rounded-[6px] border t-12 font-medium bg-white" style="border-color:oklch(0.62 0.15 155 / 0.5);color:oklch(0.42 0.14 155)">✓ סמן כהוגש</button></div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
+        <aside class="lg:sticky lg:top-6 self-start"><div class="rounded-[8px] border bg-white card-soft p-4" style="border-color:var(--hairline)"><div class="t-10 font-semibold uppercase tracking-[0.16em] text-black/50 mb-3">תוכן העניינים</div><ul id="dr-toc" class="space-y-1 t-13"></ul></div></aside>
+        <div id="dr-sections" class="space-y-5"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= POST-SUBMISSION (S10) ============================= -->
+<section data-screen="post-submission">
+  <div class="min-h-screen" style="background:var(--page)">
+    <div class="max-w-[840px] mx-auto px-8 py-10">
+      <div class="flex items-center justify-between mb-8"><a onclick="go('tender-draft')" class="inline-flex items-center gap-2 t-13 text-black/60 hover:text-black cursor-pointer">→ חזרה לטיוטה</a><div class="t-11 text-black/50 tracking-wide uppercase">לולאת למידה</div></div>
+      <div class="t-11 font-semibold uppercase tracking-[0.2em]" style="color:var(--signal)">אחרי ההגשה</div>
+      <h1 class="mt-3 font-display t-32 font-semibold">עזרו למערכת ללמוד מההגשה הזו</h1>
+      <p class="mt-3 t-13 text-black/65 max-w-[620px]">כל הגשה שתעלו כאן מעשירה את הזיכרון הארגוני — הטיוטה הבאה תהיה מדויקת יותר. עדכון התוצאה עוזר לנו למדוד Win-Rate.</p>
+
+      <div id="ps-body">
+        <!-- העלאת ההגשה בפועל -->
+        <div class="mt-8"><div class="t-13 font-semibold mb-2">ההגשה הסופית (אופציונלי)</div>
+          <div id="ps-drop" class="rounded-[8px] border-2 border-dashed p-10 text-center bg-white cursor-pointer transition-colors" style="border-color:#D6D6CE"><div class="text-2xl mb-2 text-black/40">⬆</div><div class="t-13 font-medium">גרור את קבצי ההגשה, או לחץ לבחירה</div><div class="t-12 text-black/50 mt-1">המערכת תלמד מהם פרויקטים וממדים חדשים</div></div>
+          <input id="ps-file" type="file" multiple class="hidden" />
+          <div id="ps-list" class="mt-3 space-y-2"></div>
+        </div>
+
+        <!-- תוצאה -->
+        <div class="mt-8"><div class="t-13 font-semibold mb-2">מה הייתה התוצאה?</div>
+          <div class="grid grid-cols-3 gap-3">
+            <button data-res="win" class="ps-res p-4 rounded-[8px] border bg-white t-13 font-medium text-center" style="border-color:var(--hairline)">🏆 זכינו</button>
+            <button data-res="lose" class="ps-res p-4 rounded-[8px] border bg-white t-13 font-medium text-center" style="border-color:var(--hairline)">✕ נפסלנו</button>
+            <button data-res="pending" class="ps-res p-4 rounded-[8px] border bg-white t-13 font-medium text-center" style="border-color:var(--hairline)">⏳ ממתין לתוצאה</button>
+          </div>
+        </div>
+
+        <!-- סיבה (אם נפסלנו) -->
+        <div id="ps-reason-wrap" class="mt-6 hidden"><div class="t-13 font-semibold mb-2">מה הייתה הסיבה? (אופציונלי)</div>
+          <textarea id="ps-reason" class="w-full rounded-[8px] border p-3 t-13" style="border-color:var(--hairline);min-height:90px" placeholder="לדוגמה: מחיר גבוה מדי / חסר תנאי סף / ניסיון לא מספק..."></textarea>
+        </div>
+
+        <div class="mt-8 flex items-center gap-4 border-t pt-6" style="border-color:var(--hairline)">
+          <button id="ps-submit" onclick="submitOutcome()" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white opacity-40 pointer-events-none" style="background:var(--signal)">שמור ועדכן זיכרון</button>
+          <div id="ps-hint" class="t-11 text-black/50">בחר תוצאה כדי להמשיך.</div>
+        </div>
+      </div>
+
+      <!-- מסך תודה -->
+      <div id="ps-done" class="hidden mt-10 rounded-[8px] border p-8 text-center" style="border-color:oklch(0.62 0.15 155 / 0.35);background:oklch(0.62 0.15 155 / 0.06)">
+        <div class="text-4xl mb-3">🎉</div>
+        <h2 class="font-display t-24 font-semibold">תודה — המערכת למדה מההגשה</h2>
+        <p id="ps-done-detail" class="mt-2 t-13 text-black/65">הזיכרון הארגוני עודכן.</p>
+        <div class="mt-6 flex items-center justify-center gap-3">
+          <button onclick="go('dashboard')" class="inline-flex items-center gap-2 h-11 px-5 rounded-[8px] text-white t-13 font-medium" style="background:var(--signal)">← חזרה ללוח הבקרה</button>
+          <button onclick="go('knowledge')" class="inline-flex items-center gap-2 h-11 px-5 rounded-[8px] border bg-white t-13 font-medium" style="border-color:var(--hairline)">צפה במאגר הידע</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    const drop=document.getElementById('ps-drop'), input=document.getElementById('ps-file'), list=document.getElementById('ps-list');
+    let files=[], result=null;
+    const icon=n=>{const e=(n.split('.').pop()||'').toLowerCase();return (e==='xlsx'||e==='xls')?'📊':(e==='pdf')?'📕':'📄';};
+    function renderList(){ list.innerHTML=files.map(f=>`<div class="p-3 flex items-center gap-3 border rounded-[8px] bg-white" style="border-color:var(--hairline)"><span class="grid place-items-center w-8 h-8 rounded-[8px] bg-black/[0.04] shrink-0">${icon(f.name)}</span><div class="flex-1 t-13 font-semibold truncate">${f.name}</div><span class="t-12 text-emerald-700">✓ נבחר</span></div>`).join(''); }
+    const reset=()=>{drop.style.borderColor='#D6D6CE';drop.style.background='#fff';};
+
+    function refreshSubmit(){
+      const btn=document.getElementById('ps-submit'), hint=document.getElementById('ps-hint');
+      if(result){ btn.classList.remove('opacity-40','pointer-events-none'); hint.textContent = files.length?`${files.length} קבצים ילמדו · מוכן לשמירה`:'מוכן לשמירה'; }
+    }
+
+    document.querySelectorAll('.ps-res').forEach(b=>b.addEventListener('click',()=>{
+      result=b.dataset.res;
+      document.querySelectorAll('.ps-res').forEach(x=>{x.style.borderColor='var(--hairline)';x.style.background='#fff';});
+      b.style.borderColor='var(--signal)'; b.style.background='var(--signal-8)';
+      document.getElementById('ps-reason-wrap').classList.toggle('hidden', result!=='lose');
+      refreshSubmit();
+    }));
+
+    drop.addEventListener('click',()=>input.click());
+    input.addEventListener('change',e=>{files=[...e.target.files];renderList();refreshSubmit();});
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='var(--signal)';drop.style.background='var(--signal-3)';}));
+    ['dragleave','dragend'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();reset();}));
+    drop.addEventListener('drop',e=>{e.preventDefault();reset();if(e.dataTransfer&&e.dataTransfer.files.length){files=[...e.dataTransfer.files];renderList();refreshSubmit();}});
+
+    window.psReset=function(){
+      files=[]; result=null; renderList();
+      document.querySelectorAll('.ps-res').forEach(x=>{x.style.borderColor='var(--hairline)';x.style.background='#fff';});
+      document.getElementById('ps-reason-wrap').classList.add('hidden');
+      document.getElementById('ps-reason').value='';
+      document.getElementById('ps-body').classList.remove('hidden');
+      document.getElementById('ps-done').classList.add('hidden');
+      const btn=document.getElementById('ps-submit'), hint=document.getElementById('ps-hint');
+      btn.classList.add('opacity-40','pointer-events-none'); hint.textContent='בחר תוצאה כדי להמשיך.'; hint.style.color='';
+      if(input) input.value='';
+    };
+
+    window.submitOutcome=async function(){
+      if(!result) return;
+      const btn=document.getElementById('ps-submit'), hint=document.getElementById('ps-hint');
+      const reason=document.getElementById('ps-reason').value;
+      btn.disabled=true; btn.innerHTML='<span class="spin inline-block">◠</span> שומר...';
+      try{
+        const r=await window.API.submitOutcome(window.currentTenderId,{result,reason,files});
+        const learned=r.learned||{projects:0,certifications:0};
+        document.getElementById('ps-body').classList.add('hidden');
+        document.getElementById('ps-done').classList.remove('hidden');
+        document.getElementById('ps-done-detail').textContent =
+          (learned.projects||learned.certifications)
+            ? `נלמדו ${learned.projects} פרויקטים ו-${learned.certifications} אישורים חדשים. הזיכרון הארגוני גדל.`
+            : 'התוצאה נשמרה. הזיכרון הארגוני עודכן.';
+      }catch(e){ hint.textContent='שמירה נכשלה: '+e.message; hint.style.color='#B91C1C'; }
+      finally{ btn.disabled=false; btn.innerHTML='שמור ועדכן זיכרון'; }
+    };
+  })();
+</script>
+
+<!-- ============================= IN-APP PAGES (shell-injected) ============================= -->
+<section data-screen="knowledge"></section>
+<section data-screen="drafts"></section>
+<section data-screen="settings"></section>
+
+<script>
+  function shell(active, crumb, inner){
+    const items=[['dashboard','לוח בקרה','▦','1',null],['knowledge','מאגר ידע','▤','2',null],['drafts','טיוטות ואישורים','✎','3','2'],['settings','הגדרות','⚙','4',null]];
+    const navHtml=items.map(([id,label,ic,key,badge])=>{
+      const on=id===active;
+      return `<li><a onclick="go('${id}')" class="flex items-center gap-3 px-3 h-11 t-13 cursor-pointer rounded-[8px] ${on?'text-white font-semibold':'text-white/60 hover:text-white hover:bg-white/5'}" style="${on?'background:rgba(255,255,255,.10)':''}"><span class="w-[18px] text-center">${ic}</span><span class="hidden lg:block flex-1">${label}</span>${badge?`<span class="hidden lg:inline-flex items-center justify-center min-w-5 h-5 px-1.5 t-10 font-semibold rounded-full ${on?'bg-white/20 text-white':'bg-white/15 text-white/90'}">${badge}</span>`:''}</a></li>`;
+    }).join('');
+    return `<div class="min-h-dvh w-full flex" style="font-feature-settings:'tnum'">
+      <nav class="w-16 lg:w-60 flex flex-col shrink-0" style="background:var(--navy)">
+        <a onclick="go('dashboard')" class="h-14 px-4 lg:px-5 flex items-center gap-3 cursor-pointer" style="border-bottom:1px solid var(--navy-soft)"><div class="w-7 h-7 flex items-center justify-center rounded-[6px]" style="background:var(--signal)"><div class="w-2.5 h-2.5 bg-white rounded-[1px]"></div></div><span class="hidden lg:block font-semibold tracking-tight t-15 text-white">UC TENDER</span></a>
+        <div class="flex-1 py-4"><div class="hidden lg:block px-5 mb-2 t-10 font-semibold tracking-[0.18em] uppercase text-white/40">סביבת עבודה</div><ul class="space-y-1 px-2">${navHtml}</ul></div>
+        <div class="p-4" style="border-top:1px solid var(--navy-soft)"><div class="hidden lg:flex items-center gap-2 t-11 text-white/55"><span class="text-emerald-400">🛡</span><span class="font-semibold tracking-wide">SOC2 · Zero Retention</span></div></div>
+      </nav>
+      <main class="flex-1 flex flex-col min-w-0">
+        <header class="h-14 border-b flex items-center justify-between px-5 lg:px-8 bg-white shrink-0 gap-6" style="border-color:var(--hairline)">
+          <nav class="flex items-center gap-1.5 t-13"><span class="text-black/55">סביבת עבודה</span><span class="text-black/25">/</span><span class="text-black font-semibold">${crumb}</span></nav>
+          <div class="flex items-center gap-2 shrink-0"><span class="t-11 font-semibold border px-3 h-11 inline-flex items-center rounded-[8px]" style="border-color:var(--hairline)">עב / EN</span><button onclick="go('tender-new')" class="text-white t-12 font-semibold px-4 h-11 rounded-[8px]" style="background:var(--signal)">מכרז חדש</button></div>
+        </header>
+        <div class="flex-1 min-w-0 overflow-y-auto p-6 lg:p-10">${inner}</div>
+      </main>
+    </div>`;
+  }
+
+  // ---- מאגר ידע (נטען מה-API) ----
+  const KB_STAT = (l,v)=>`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.16em] text-black/55">${l}</div><div class="mt-2 font-display font-semibold tabular-nums leading-none text-[34px]" style="color:var(--signal)">${v}</div></div>`;
+  const KB_CHIP = d=>`<span class="t-11 h-6 inline-flex items-center px-2 rounded-[3px] border font-semibold" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${d}</span>`;
+  const KB_PROJECT = p=>`<article class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-start justify-between"><div><h3 class="font-display t-15 font-semibold">${p.name}</h3><div class="mt-1 t-11 font-mono text-black/55">${p.year||'—'}</div></div><button onclick="kbDeleteProject('${p.id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[3px] h-8 px-2.5" style="border-color:var(--hairline)">🗑 הסר</button></div><div class="mt-4 flex flex-wrap gap-1.5">${(p.dimensions||[]).map(KB_CHIP).join('')||'<span class="t-12 text-black/40 italic">אין ממדים</span>'}</div></article>`;
+  const KB_CERT = c=>`<li class="p-4 flex items-center gap-4"><span class="grid place-items-center w-9 h-9 rounded-[8px] shrink-0" style="background:var(--signal-8);color:var(--signal)">🛡</span><div class="flex-1"><div class="t-13 font-semibold">${c.name}</div><div class="mt-0.5 t-12 text-black/60">🗓 ${c.valid_until?('בתוקף עד '+c.valid_until):(c.status||'בתוקף')}</div></div></li>`;
+
+  const knowledgeInner = `
+    <div class="mb-8"><div class="t-11 font-semibold uppercase tracking-[0.2em] mb-2" style="color:var(--signal)">זיכרון ארגוני</div><h1 class="font-display t-32 font-semibold">מאגר ידע</h1><p class="mt-2 t-13 text-black/60 max-w-[620px]">כל מה שהמערכת יודעת על החברה שלך. ככל שתעלה יותר — הטיוטות מדויקות יותר.</p></div>
+    <div id="kb-stats" class="grid grid-cols-4 gap-4 mb-10"></div>
+    <div class="flex items-end justify-between border-b pb-4 mb-5" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">פרויקטים</h2><button onclick="kbAddProject()" class="t-12 font-semibold inline-flex items-center gap-1.5" style="color:var(--signal)">+ הוסף פרויקט</button></div>
+    <div id="kb-projects" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10"></div>
+    <div class="flex items-end justify-between border-b pb-4 mb-5" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">אישורים</h2></div>
+    <ul id="kb-certs" class="border rounded-[6px] divide-y overflow-hidden" style="border-color:var(--hairline)"></ul>`;
+
+  async function renderKnowledge(){
+    const kb = await window.API.knowledge({projects:[],certifications:[],counts:{projects:0,certifications:0,dimensions:0,tendersLearned:0}});
+    const stats=document.getElementById('kb-stats'); if(!stats) return;
+    stats.innerHTML = KB_STAT('פרויקטים',kb.counts.projects)+KB_STAT('אישורים',kb.counts.certifications)+KB_STAT('ממדים',kb.counts.dimensions)+KB_STAT('מכרזים שנלמדו',kb.counts.tendersLearned||0);
+    document.getElementById('kb-projects').innerHTML = kb.projects.map(KB_PROJECT).join('')||'<div class="t-13 text-black/45 col-span-2">עדיין אין פרויקטים. העלה מסמכים כדי שהמערכת תלמד.</div>';
+    document.getElementById('kb-certs').innerHTML = kb.certifications.map(KB_CERT).join('')||'<li class="p-4 t-13 text-black/45">אין אישורים.</li>';
+  }
+  async function kbAddProject(){
+    const name=prompt('שם הפרויקט:'); if(!name) return;
+    const year=prompt('שנה (אופציונלי):')||null;
+    const dims=(prompt('ממדים מופרדים בפסיק (אופציונלי):')||'').split(',').map(s=>s.trim()).filter(Boolean);
+    try{ await window.API.addProject({name,year,dimensions:dims}); renderKnowledge(); }catch(e){ alert('שמירה נכשלה: '+e.message); }
+  }
+  async function kbDeleteProject(id){
+    if(!confirm('להסיר את הפרויקט מהמאגר?')) return;
+    try{ await window.API.deleteProject(id); renderKnowledge(); }catch(e){ alert('הסרה נכשלה: '+e.message); }
+  }
+  window.kbAddProject=kbAddProject; window.kbDeleteProject=kbDeleteProject; window.renderKnowledge=renderKnowledge;
+
+  // ---- טיוטות ואישורים ----
+  const draftRows=[['#39/2026','פלטפורמת נתוני בריאות','ממתין לאישור','88%','דנה לוי','amber'],['#44/2026','ניהול מערך תחבורה','טיוטה','42%','המערכת','signal'],['#61/2026','פורטל תעסוקה','ממתין לאישור','92%','רון כץ','amber'],['#58/2026','מחסן נתונים בין-משרדי','טיוטה','55%','מיה כהן','signal'],['#67/2026','פריסת פס-רחב','אושר','100%','דנה לוי','green']];
+  const draftsInner = `
+    <div class="mb-8"><div class="t-11 font-semibold uppercase tracking-[0.2em] mb-2" style="color:var(--signal)">מרכז עבודה</div><h1 class="font-display t-32 font-semibold">טיוטות ואישורים</h1><p class="mt-2 t-13 text-black/60 max-w-[620px]">כל הטיוטות בתהליך, סטטוס האישור וההתקדמות שלהן.</p></div>
+    <div class="flex items-center gap-2 mb-5">${['הכל','טיוטה','ממתין לאישור','אושר'].map((t,i)=>`<button class="t-12 font-medium px-3 h-9 rounded-[6px] border ${i===0?'text-white':'bg-white text-black/65'}" style="${i===0?'background:var(--signal);border-color:var(--signal)':'border-color:var(--hairline)'}">${t}</button>`).join('')}</div>
+    <div class="rounded-[8px] border bg-white card-soft overflow-hidden" style="border-color:var(--hairline)">
+      <div class="grid grid-cols-[100px_1fr_140px_100px_120px] gap-4 px-5 py-3 border-b t-10 font-semibold uppercase tracking-[0.14em] text-black/55" style="border-color:var(--hairline);background:#FAFAF7"><div>מכרז</div><div>שם</div><div>סטטוס</div><div>התקדמות</div><div>אחראי</div></div>
+      ${draftRows.map(([code,name,status,prog,owner,tone])=>{const tc={amber:'background:oklch(0.72 0.16 70 / 0.15);color:oklch(0.45 0.12 70)',signal:'background:var(--signal-8);color:var(--signal)',green:'background:oklch(0.62 0.15 155 / 0.12);color:oklch(0.42 0.14 155)'}[tone];return `<div class="grid grid-cols-[100px_1fr_140px_100px_120px] gap-4 px-5 py-4 border-t items-center cursor-pointer hover:bg-black/[0.015]" style="border-color:var(--hairline-soft)" onclick="go('tender-draft')"><div class="font-mono t-11 text-black/60">${code}</div><div class="t-13 font-medium">${name}</div><div><span class="inline-flex items-center t-11 font-semibold px-2 h-6 rounded-full" style="${tc}">${status}</span></div><div class="t-12 font-mono tabular-nums text-black/70">${prog}</div><div class="t-12 text-black/70">${owner}</div></div>`;}).join('')}
+    </div>`;
+
+  // ---- הגדרות ----
+  const settingsInner = `
+    <div class="mb-8"><div class="t-11 font-semibold uppercase tracking-[0.2em] mb-2" style="color:var(--signal)">ניהול</div><h1 class="font-display t-32 font-semibold">הגדרות</h1></div>
+    <div class="max-w-[820px] space-y-6">
+      <div class="rounded-[8px] border bg-white card-soft p-6" style="border-color:var(--hairline)">
+        <div class="flex items-center justify-between mb-3"><h2 class="t-18 font-semibold">פרטי הארגון</h2><button onclick="editCompany()" class="t-12 font-semibold border rounded-[6px] h-8 px-3" style="border-color:var(--hairline)">✎ ערוך</button></div>
+        <div id="set-org"></div>
+      </div>
+      <div class="rounded-[8px] border bg-white card-soft p-6" style="border-color:var(--hairline)">
+        <h2 class="t-18 font-semibold mb-3">פרופיל למכרזים</h2>
+        <div id="set-profile"></div>
+      </div>
+      <div class="rounded-[8px] border bg-white card-soft p-6" style="border-color:var(--hairline)"><h2 class="t-18 font-semibold mb-4">אבטחה ואחסון</h2>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between py-2"><div><div class="t-13 font-medium">מיקום אחסון נתונים</div><div class="t-12 text-black/55">היכן נשמרים הנתונים שלך</div></div><span class="t-13 text-black/70">🇮🇱 מקומי · ישראל</span></div>
+          <div class="flex items-center justify-between py-2 border-t" style="border-color:var(--hairline-soft)"><div><div class="t-13 font-medium">תקני אבטחה (SOC 2 / ISO 27001)</div><div class="t-12 text-black/55">הסמכות פורמליות</div></div><span class="inline-flex items-center t-11 font-semibold px-2 h-6 rounded-full" style="background:var(--signal-8);color:var(--signal)">בתכנון</span></div>
+        </div>
+      </div>
+    </div>`;
+
+  document.querySelector('[data-screen="knowledge"]').innerHTML = shell('knowledge','מאגר ידע', knowledgeInner);
+  document.querySelector('[data-screen="drafts"]').innerHTML = shell('drafts','טיוטות ואישורים', draftsInner);
+  document.querySelector('[data-screen="settings"]').innerHTML = shell('settings','הגדרות', settingsInner);
+
+  // ---- הגדרות — פרופיל החברה מונחה-נתונים ----
+  async function renderSettings(){
+    const c = await window.API.company({});
+    const esc=v=>(v==null?'':String(v));
+    const row=(label,val,mono)=>`<div class="flex justify-between gap-6 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><span class="t-12 text-black/55 shrink-0">${label}</span><span class="t-13 text-black/85 text-left ${mono?'font-mono':''}" style="word-break:break-word">${esc(val).trim()||'—'}</span></div>`;
+    const chips=arr=>(arr&&arr.length)?arr.map(s=>`<span class="t-11 h-6 inline-flex items-center px-2 rounded-[3px] border font-semibold" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${s}</span>`).join(' '):'<span class="t-12 text-black/40">—</span>';
+    const rowChips=(label,html)=>`<div class="flex justify-between gap-6 py-2.5 border-t first:border-t-0 items-start" style="border-color:var(--hairline-soft)"><span class="t-12 text-black/55 shrink-0 mt-0.5">${label}</span><span class="flex flex-wrap gap-1.5 justify-end">${html}</span></div>`;
+    const contact=[c.contact_name,c.contact_phone].filter(Boolean).join(' · ');
+    const org=document.getElementById('set-org');
+    if(org) org.innerHTML = row('שם העסק',c.name)+row('ישות משפטית',c.legal_entity)+row('ח.פ. / ע.מ.',c.reg_no,true)+row('כתובת',c.address)+row('אתר',c.website,true)+row('אימייל',c.email,true)+row('איש קשר',contact)+rowChips('תחומי התמחות',chips(c.specialties))+rowChips('אזורי פעילות',chips(c.regions));
+    const prof=document.getElementById('set-profile');
+    if(prof) prof.innerHTML = row('תחום העיסוק המרכזי',c.main_domain)+row('פירוט השירותים',c.services)+row('שנות ניסיון (בכיר)',c.senior_experience_years)+row('תואר בעל התפקיד',c.key_person_title)+row('מחזור ממוצע (3ש׳)',c.avg_turnover)+row('עובדים מוסמכים (רו״ח/עו״ד)',c.certified_staff)+row('ניסיון עם גופים ציבוריים',c.public_sector_experience)+row('לקוחות בולטים',c.notable_clients);
+  }
+  window.renderSettings=renderSettings;
+
+  // ---- מסך סקירה (S03) — נטען מה-API ----
+  const RV_CATS={projects:'פרויקטים וניסיון',certifications:'אישורים ותקנים',financial:'פיננסי',staff:'כוח אדם וכשירות',clients:'לקוחות והמלצות'};
+
+  function rvProjectCard(p){
+    const chips=(p.dimensions||[]).map(d=>`<span class="t-11 h-6 inline-flex items-center px-2 rounded-[3px] border font-semibold" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${d}</span>`).join(' ');
+    return `<article id="rvp-${p.id}" class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">
+      <div class="flex items-start justify-between gap-2"><div class="min-w-0"><h3 class="font-display t-15 font-semibold truncate">${p.name}</h3><div class="mt-1 t-11 font-mono ${p.year?'text-black/55':'text-amber-600'}">${p.year||'— ללא שנה'}</div></div>
+        <div class="flex items-center gap-1 shrink-0"><button onclick="rvEditProject('${p.id}')" class="t-12 text-black/60 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">✎</button><button onclick="rvDeleteProject('${p.id}')" class="t-12 text-black/40 hover:text-rose-600 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">🗑</button></div></div>
+      <div class="mt-3 flex flex-wrap gap-1.5">${chips||'<span class="t-12 text-black/40 italic">אין ממדים</span>'}</div>
+      ${p.source?`<div class="mt-3 pt-3 border-t t-11 text-black/45" style="border-color:var(--hairline-soft)">מבוסס על: ${p.source}</div>`:''}
+    </article>`;
+  }
+  function rvCertRow(c){
+    const src=c.source?` · מבוסס על: ${c.source}`:'';
+    return `<li class="p-4 flex items-center gap-4"><span class="grid place-items-center w-9 h-9 rounded-[8px] shrink-0" style="background:var(--signal-8);color:var(--signal)">🛡</span>
+      <div class="flex-1 min-w-0"><div class="t-13 font-semibold">${c.name}</div><div class="mt-0.5 t-12 ${c.valid_until?'text-black/60':'text-amber-600'}">🗓 ${c.valid_until?('בתוקף עד '+c.valid_until):(c.status||'ללא תוקף')}<span class="text-black/45">${src}</span></div></div>
+      <button onclick="rvFixCertValidity('${c.id}')" class="t-12 text-black/60 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">✎</button>
+      <button onclick="rvDeleteCert('${c.id}')" class="t-12 text-black/40 hover:text-rose-600 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">🗑</button></li>`;
+  }
+  function rvDocsByCat(docs){
+    if(!docs.length) return '<div class="t-13 text-black/45 py-2">עדיין לא הועלו מסמכים.</div>';
+    const by={}; docs.forEach(d=>{(by[d.category]=by[d.category]||[]).push(d);});
+    const cards=Object.keys(RV_CATS).filter(k=>(by[k]||[]).length).map(k=>`<div class="rounded-[8px] border bg-white p-4" style="border-color:var(--hairline)"><div class="t-12 font-semibold mb-2">${RV_CATS[k]} <span class="text-black/40">· ${by[k].length}</span></div><div class="flex flex-wrap gap-1.5">${by[k].map(d=>`<span class="t-11 px-2 h-6 inline-flex items-center rounded-[3px] bg-black/[0.04] text-black/70 max-w-full truncate">${d.filename}</span>`).join('')}</div></div>`).join('');
+    return `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">${cards}</div>`;
+  }
+
+  async function renderReview(){
+    const el=id=>document.getElementById(id); if(!el('rv-readiness')) return;
+    const [kb, rd, company, docs] = await Promise.all([
+      window.API.knowledge({projects:[],certifications:[],counts:{projects:0,certifications:0,dimensions:0}}),
+      window.API.readiness({categories:[],covered:0,total:5,pct:0}),
+      window.API.company({}),
+      window.API.documentsList([]),
+    ]);
+
+    const covered=(rd.categories||[]).filter(c=>c.covered).map(c=>c.label);
+    const missing=(rd.categories||[]).filter(c=>!c.covered).map(c=>c.label);
+    el('rv-readiness').innerHTML=`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">
+      <div class="flex items-center justify-between mb-2.5"><div class="t-13 font-semibold">מוכנוּת הזיכרון הארגוני</div><div class="t-13 font-semibold" style="color:var(--signal)">${rd.covered}/${rd.total} קטגוריות · ${rd.pct}%</div></div>
+      <div class="h-2 rounded-full overflow-hidden mb-3" style="background:var(--signal-8)"><div class="h-full rounded-full" style="width:${rd.pct}%;background:var(--signal)"></div></div>
+      <div class="flex flex-wrap gap-x-5 gap-y-1.5 t-12">${covered.length?`<span class="text-emerald-700">✓ יש: ${covered.join(' · ')}</span>`:''}${missing.length?`<span class="text-black/45">○ חסר: ${missing.join(' · ')}</span>`:''}</div></div>`;
+
+    const issues=[];
+    kb.projects.forEach(p=>{ if(!p.year) issues.push({label:`לפרויקט "${p.name}" חסרה שנה`, act:`rvFixProjectYear('${p.id}')`}); });
+    kb.certifications.forEach(c=>{ if(!c.valid_until) issues.push({label:`לאישור "${c.name}" חסר תוקף`, act:`rvFixCertValidity('${c.id}')`}); });
+    el('rv-clarify').innerHTML = issues.length ? `<div class="rounded-[8px] border p-4" style="border-color:oklch(0.72 0.16 70 / 0.4);background:oklch(0.72 0.16 70 / 0.05)"><div class="t-13 font-semibold mb-2" style="color:var(--amber-signal)">⚠ טעון בירור — ${issues.length} פריטים שהמערכת לא ממציאה</div><div class="space-y-1.5">${issues.map(i=>`<div class="flex items-center justify-between gap-3 t-12"><span class="text-black/70">${i.label}</span><button onclick="${i.act}" class="t-11 font-semibold px-2.5 h-7 rounded-[6px] border bg-white" style="border-color:oklch(0.72 0.16 70 / 0.5);color:oklch(0.45 0.12 70)">השלם</button></div>`).join('')}</div></div>` : '';
+
+    const crow=(l,v)=>`<div class="flex justify-between gap-4 py-2 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><span class="t-12 text-black/55">${l}</span><span class="t-13 text-black/85 text-left">${(v&&(''+v).trim())?v:'—'}</span></div>`;
+    el('rv-company').innerHTML=`<div class="rounded-[8px] border bg-white card-soft p-5 grid grid-cols-1 md:grid-cols-2 md:gap-x-10" style="border-color:var(--hairline)"><div>${crow('שם העסק',company.name)}${crow('ישות משפטית',company.legal_entity)}${crow('ח.פ. / ע.מ.',company.reg_no)}${crow('תחום עיסוק',company.main_domain)}</div><div>${crow('שנות ניסיון (בכיר)',company.senior_experience_years)}${crow('עובדים מוסמכים',company.certified_staff)}${crow('ניסיון עם גופים ציבוריים',company.public_sector_experience)}${crow('מחזור ממוצע',company.avg_turnover)}</div></div>`;
+
+    el('rv-projects').innerHTML = kb.projects.length ? kb.projects.map(rvProjectCard).join('') : '<div class="t-13 text-black/45 col-span-2 py-3">לא חולצו פרויקטים. חזרו להעלאה או הוסיפו ידנית.</div>';
+    el('rv-certs').innerHTML = kb.certifications.length ? kb.certifications.map(rvCertRow).join('') : '<li class="p-4 t-13 text-black/45">לא זוהו אישורים.</li>';
+    el('rv-docs').innerHTML = rvDocsByCat(docs);
+  }
+  window.renderReview=renderReview;
+
+  window.rvEditProject=async function(id){
+    const kb=await window.API.knowledge(null); const p=(kb.projects||[]).find(x=>x.id===id); if(!p) return;
+    const card=document.getElementById('rvp-'+id); if(!card) return;
+    card.innerHTML=`<div class="space-y-2">
+      <input id="rve-name-${id}" class="w-full h-9 px-2.5 border rounded-[6px] t-13" style="border-color:var(--hairline)" value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="שם הפרויקט" />
+      <input id="rve-year-${id}" class="w-full h-9 px-2.5 border rounded-[6px] t-13 font-mono" style="border-color:var(--hairline)" value="${p.year||''}" placeholder="שנה" />
+      <input id="rve-dims-${id}" class="w-full h-9 px-2.5 border rounded-[6px] t-13" style="border-color:var(--hairline)" value="${(p.dimensions||[]).join(', ').replace(/"/g,'&quot;')}" placeholder="ממדים מופרדים בפסיק" />
+      <div class="flex gap-2 pt-1"><button onclick="rvSaveProject('${id}')" class="t-12 font-semibold text-white px-3 h-8 rounded-[6px]" style="background:var(--signal)">שמור</button><button onclick="renderReview()" class="t-12 font-semibold px-3 h-8 rounded-[6px] border" style="border-color:var(--hairline)">ביטול</button></div></div>`;
+  };
+  window.rvSaveProject=async function(id){
+    const g=i=>document.getElementById(i).value;
+    try{ await window.API.updateProject(id,{name:g('rve-name-'+id).trim(),year:g('rve-year-'+id).trim()||null,dimensions:g('rve-dims-'+id).split(',').map(s=>s.trim()).filter(Boolean)}); renderReview(); }
+    catch(e){ alert('שמירה נכשלה: '+e.message); }
+  };
+  window.rvDeleteProject=async function(id){ if(!confirm('להסיר את הפרויקט מהמאגר?')) return; try{ await window.API.deleteProject(id); renderReview(); }catch(e){ alert(e.message); } };
+  window.rvFixProjectYear=async function(id){ const v=prompt('שנת הפרויקט:'); if(v==null) return; try{ await window.API.updateProject(id,{year:v.trim()||null}); renderReview(); }catch(e){ alert(e.message); } };
+  window.rvFixCertValidity=async function(id){ const v=prompt('תוקף האישור (למשל: 2027):'); if(v==null) return; try{ await window.API.updateCert(id,{valid_until:v.trim()||null,status:'בתוקף'}); renderReview(); }catch(e){ alert(e.message); } };
+  window.rvDeleteCert=async function(id){ if(!confirm('להסיר את האישור?')) return; try{ await window.API.deleteCert(id); renderReview(); }catch(e){ alert(e.message); } };
+  window.rvAddCert=async function(){ const name=prompt('שם האישור:'); if(!name) return; const v=prompt('תוקף (אופציונלי):'); try{ await window.API.addCert({name:name.trim(),valid_until:v?v.trim():null}); renderReview(); }catch(e){ alert(e.message); } };
+
+  // ---- מסך העלאה (S02) — קטגוריות + סיווג אוטומטי + מד מוכנוּת ----
+  (function(){
+    const drop=document.getElementById('up-drop'), input=document.getElementById('up-file'),
+          list=document.getElementById('up-list'), cont=document.getElementById('up-continue'),
+          catsEl=document.getElementById('up-cats'), readyEl=document.getElementById('up-readiness');
+    if(!drop||!input) return;
+
+    const CATS=[
+      {key:'projects',label:'פרויקטים וניסיון',ic:'📁',hint:'תיקי עבודה, case studies, המלצות'},
+      {key:'certifications',label:'אישורים ותקנים',ic:'🛡',hint:'ISO, סיווג קבלני, ניהול ספרים, ניכוי מס'},
+      {key:'financial',label:'פיננסי',ic:'📊',hint:'מאזנים, דוחות רו״ח, מחזור'},
+      {key:'staff',label:'כוח אדם וכשירות',ic:'👥',hint:'קו״ח, עובדים מוסמכים, תעודות'},
+      {key:'clients',label:'לקוחות והמלצות',ic:'⭐',hint:'רשימת לקוחות, המלצות'},
+    ];
+    const icon=n=>{const e=(n.split('.').pop()||'').toLowerCase();return (e==='xlsx'||e==='xls')?'📊':(e==='pdf')?'📕':'📄';};
+    const enableContinue=()=>{cont.classList.remove('opacity-40','pointer-events-none');};
+    let pendingCat=null;
+    const uploaded=[];
+
+    function renderCats(r){
+      const counts={}; (r&&r.categories||[]).forEach(c=>counts[c.key]=c.count);
+      catsEl.innerHTML = CATS.map(c=>`
+        <div class="up-cat rounded-[8px] border border-dashed p-4 cursor-pointer transition-colors" data-cat="${c.key}" style="border-color:var(--hairline);background:#fff">
+          <div class="flex items-start gap-3">
+            <span class="grid place-items-center w-9 h-9 rounded-[8px] shrink-0" style="background:var(--signal-8)">${c.ic}</span>
+            <div class="flex-1 min-w-0"><div class="t-13 font-semibold">${c.label}</div><div class="t-11 text-black/50 leading-snug mt-0.5">${c.hint}</div></div>
+            <span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full" style="${counts[c.key]?'background:var(--signal-8);color:var(--signal)':'background:#F4F6FB;color:rgba(0,0,0,.35)'}">${counts[c.key]||0}</span>
+          </div>
+        </div>`).join('');
+      catsEl.querySelectorAll('.up-cat').forEach(card=>{
+        const cat=card.dataset.cat;
+        card.addEventListener('click',()=>{ pendingCat=cat; input.click(); });
+        ['dragenter','dragover'].forEach(ev=>card.addEventListener(ev,e=>{e.preventDefault();card.style.borderColor='var(--signal)';card.style.background='var(--signal-3)';}));
+        ['dragleave','dragend'].forEach(ev=>card.addEventListener(ev,e=>{e.preventDefault();card.style.borderColor='var(--hairline)';card.style.background='#fff';}));
+        card.addEventListener('drop',e=>{e.preventDefault();card.style.borderColor='var(--hairline)';card.style.background='#fff';if(e.dataTransfer&&e.dataTransfer.files.length)handle(e.dataTransfer.files,cat);});
+      });
+    }
+
+    function renderReadiness(r){
+      const cats=(r&&r.categories&&r.categories.length)?r.categories:CATS.map(c=>({label:c.label,covered:false}));
+      const covered=(r&&r.covered)||0, total=(r&&r.total)||CATS.length, pct=(r&&r.pct)||0;
+      readyEl.innerHTML = `
+        <div class="rounded-[8px] border bg-white card-soft p-4" style="border-color:var(--hairline)">
+          <div class="flex items-center justify-between mb-2.5"><div class="t-12 font-semibold">מוכנוּת הזיכרון הארגוני</div><div class="t-12 font-semibold" style="color:var(--signal)">${covered}/${total} קטגוריות · ${pct}%</div></div>
+          <div class="h-2 rounded-full overflow-hidden mb-3" style="background:var(--signal-8)"><div class="h-full rounded-full" style="width:${pct}%;background:var(--signal)"></div></div>
+          <div class="flex flex-wrap gap-x-4 gap-y-1.5">${cats.map(c=>`<span class="inline-flex items-center gap-1.5 t-11 ${c.covered?'text-emerald-700':'text-black/40'}">${c.covered?'✓':'○'} ${c.label}</span>`).join('')}</div>
+        </div>`;
+    }
+
+    async function refresh(){ const r=await window.API.readiness(null); renderReadiness(r); renderCats(r); }
+
+    function catSelect(res){
+      return `<select onchange="upReclassify('${res.id}',this.value)" class="t-11 border rounded-[6px] h-7 px-1.5 bg-white" style="border-color:var(--hairline)">${CATS.map(c=>`<option value="${c.key}" ${c.key===res.category?'selected':''}>${c.label}</option>`).join('')}</select>`;
+    }
+    function rowDone(res){
+      const ok=res.status==='done';
+      const detail=ok?`זוהו ${res.projects} פרויקטים · ${res.certifications} אישורים`:(res.error||'שגיאה');
+      const cls=ok?'text-emerald-700':'text-rose-600';
+      const badge=res.autoClassified?'<span class="t-10 px-1.5 h-5 inline-flex items-center rounded-full" style="background:var(--signal-8);color:var(--signal)">סווג אוטומטית</span>':'';
+      return `<div class="p-3 flex items-center gap-3 border rounded-[8px] bg-white" style="border-color:var(--hairline)"><span class="grid place-items-center w-9 h-9 rounded-[8px] bg-black/[0.04] shrink-0">${icon(res.filename)}</span><div class="flex-1 min-w-0"><div class="t-13 font-semibold truncate">${res.filename}</div><div class="mt-1 t-12 inline-flex items-center gap-1.5 ${cls}">${ok?'✓ ':'⚠ '}<span class="text-black/70">${detail}</span></div></div><div class="flex items-center gap-2 shrink-0">${badge}${ok?catSelect(res):''}</div></div>`;
+    }
+    function renderList(){ list.innerHTML = uploaded.map(rowDone).join(''); }
+
+    async function handle(fileList, category){
+      const files=[...fileList]; if(!files.length) return;
+      list.insertAdjacentHTML('afterbegin', files.map(f=>`<div class="p-3 flex items-center gap-3 border rounded-[8px] bg-white" style="border-color:var(--hairline)"><span class="grid place-items-center w-9 h-9 rounded-[8px] bg-black/[0.04] shrink-0">${icon(f.name)}</span><div class="flex-1 min-w-0"><div class="t-13 font-semibold truncate">${f.name}</div><div class="mt-1 t-12 inline-flex items-center gap-1.5" style="color:var(--signal)"><span class="spin inline-block">◠</span> קורא ומעבד...</div></div></div>`).join(''));
+      try{
+        const {results, readiness}=await window.API.uploadDocuments(files, category);
+        for(const res of results) uploaded.unshift(res);
+        renderList(); renderReadiness(readiness); renderCats(readiness);
+        if(uploaded.some(r=>r.status==='done')) enableContinue();
+      }catch(e){
+        list.insertAdjacentHTML('afterbegin', `<div class="p-3 border rounded-[8px] t-12 text-rose-600" style="border-color:var(--hairline)">ההעלאה נכשלה: ${e.message}. ודא שהשרת רץ.</div>`);
+      }
+    }
+
+    window.upReclassify=async function(id,cat){
+      try{ const {readiness}=await window.API.setDocCategory(id,cat); const it=uploaded.find(r=>r.id===id); if(it){it.category=cat;it.autoClassified=false;} renderList(); renderReadiness(readiness); renderCats(readiness); }
+      catch(e){ alert('שינוי סיווג נכשל: '+e.message); }
+    };
+
+    drop.addEventListener('click',()=>{ pendingCat=null; input.click(); });
+    input.addEventListener('change',e=>{ const cat=pendingCat; pendingCat=null; handle(e.target.files, cat); input.value=''; });
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='var(--signal)';drop.style.background='var(--signal-3)';}));
+    ['dragleave','dragend'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='var(--hairline)';drop.style.background='#FCFCFB';}));
+    drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='var(--hairline)';drop.style.background='#FCFCFB';if(e.dataTransfer&&e.dataTransfer.files)handle(e.dataTransfer.files,null);});
+
+    refresh();
+    window.renderUpload=refresh;
+  })();
+</script>
+
+<!-- Screen switcher (floating, collapsible dev aid) -->
+<div style="position:fixed;bottom:12px;left:12px;z-index:99">
+  <div id="scr-panel" class="hidden absolute bottom-11 left-0 bg-white border rounded-[8px] shadow-lg p-2 flex flex-wrap gap-1 w-[300px]" style="border-color:var(--hairline)">
+    <span class="t-10 font-semibold text-black/40 w-full px-1">מסכים (פרוטוטייפ):</span>
+    <button onclick="go('welcome')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">Welcome</button>
+    <button onclick="go('upload')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">העלאה</button>
+    <button onclick="go('review')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">סקירה</button>
+    <button onclick="go('dashboard')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">דשבורד</button>
+    <button onclick="go('tender-new')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">מכרז חדש</button>
+    <button onclick="go('tender-analysis')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">ניתוח</button>
+    <button onclick="go('draft-mapping')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">מיפוי</button>
+    <button onclick="go('tender-draft')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">טיוטה</button>
+    <button onclick="go('post-submission')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">למידה</button>
+    <button onclick="go('knowledge')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">מאגר ידע</button>
+    <button onclick="go('drafts')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">טיוטות</button>
+    <button onclick="go('settings')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">הגדרות</button>
+  </div>
+  <button onclick="document.getElementById('scr-panel').classList.toggle('hidden')" title="ניווט מסכים (פרוטוטייפ)" class="w-8 h-8 rounded-full bg-white/80 border shadow-sm flex items-center justify-center t-12 text-black/35 hover:text-black/70 hover:bg-white transition-colors" style="border-color:var(--hairline)">☰</button>
+</div>
+
+</body>
+</html>

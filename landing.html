@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>UC TENDER — הפכו ניסיון לזכיות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&family=Rubik:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root{
+  --g1:#0D8A5F; --g2:#0E7FBF; /* hero gradient green->blue like responsive */
+  --ink:#0B0F14; --accent:#16A34A; --blue:#2563EB;
+}
+html,body{font-family:"Heebo",ui-sans-serif,system-ui;color:var(--ink);scroll-behavior:smooth}
+.disp{font-family:"Rubik","Heebo",sans-serif;letter-spacing:-0.02em}
+.mono{font-family:"JetBrains Mono",monospace}
+.hero-grad{background:linear-gradient(115deg,var(--g1) 0%,#0C9B70 35%,var(--g2) 100%)}
+.section-dark{background:#0B0F14}
+@keyframes fadeup{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+.fu{opacity:0;animation:fadeup .75s cubic-bezier(.2,.8,.2,1) forwards}
+.d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.28s}.d4{animation-delay:.42s}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.floaty{animation:floaty 7s ease-in-out infinite}
+@keyframes barfill{to{width:var(--w)}}
+.bar{width:0;animation:barfill 1.6s cubic-bezier(.4,0,.2,1) forwards .6s}
+@keyframes ringfill{to{stroke-dashoffset:30}}
+.ring{stroke-dashoffset:239;animation:ringfill 1.8s cubic-bezier(.4,0,.2,1) forwards .8s}
+@keyframes count{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.tab-active{border-bottom:3px solid var(--ink);color:var(--ink);font-weight:700}
+.reveal{opacity:0;transform:translateY(30px);transition:all .8s cubic-bezier(.2,.8,.2,1)}
+.reveal.on{opacity:1;transform:none}
+</style>
+</head>
+<body class="bg-white">
+
+<!-- ============ NAV ============ -->
+<nav class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-black/5">
+  <div class="mx-auto max-w-[1280px] px-6 h-[72px] flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="grid place-items-center w-9 h-9 rounded-[10px] text-white font-extrabold text-[15px]" style="background:linear-gradient(135deg,var(--g1),var(--g2))">UC</span>
+      <span class="disp text-[19px] font-extrabold">UC TENDER</span>
+    </div>
+    <div class="hidden md:flex items-center gap-8 text-[15px] font-medium text-black/70">
+      <a class="hover:text-black cursor-pointer">פלטפורמה</a>
+      <a class="hover:text-black cursor-pointer">פתרונות</a>
+      <a class="hover:text-black cursor-pointer">תמחור</a>
+      <a class="hover:text-black cursor-pointer">משאבים</a>
+    </div>
+    <div class="flex items-center gap-3">
+      <a class="text-[15px] font-medium text-black/70 hover:text-black cursor-pointer">התחברות</a>
+      <a href="prototype/index.html" class="text-[15px] font-bold text-white px-5 h-11 inline-flex items-center rounded-[6px] bg-black hover:bg-black/85 transition-colors">בקשו הדגמה</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO — full-bleed gradient ============ -->
+<header class="hero-grad relative overflow-hidden">
+  <div class="mx-auto max-w-[1280px] px-6 pt-20 pb-28 grid lg:grid-cols-[1fr_560px] gap-16 items-center">
+    <div class="text-white relative z-10">
+      <div class="fu d1 text-[13px] font-bold tracking-[0.22em] uppercase text-white/80 mb-5">פלטפורמת AI למכרזים ציבוריים</div>
+      <h1 class="fu d2 disp font-black leading-[1.02]" style="font-size:clamp(42px,5.5vw,72px)">פלטפורמה אחת<br>שהופכת ניסיון<br>לזכיות במכרזים</h1>
+      <p class="fu d3 mt-7 text-[19px] leading-relaxed text-white/85 max-w-[480px]">המערכת לומדת את כל הידע הארגוני שלכם — ומייצרת טיוטות מענה מדויקות למכרזי ממשלה ורשויות, עם הפניה לכל מקור. בלי הזיות, בלי פסילות טכניות.</p>
+      <div class="fu d4 mt-9 flex flex-wrap items-center gap-4">
+        <a href="prototype/index.html" class="text-[16px] font-bold px-7 h-14 inline-flex items-center rounded-[6px] bg-white text-black hover:scale-[1.02] transition-transform">בקשו הדגמה ←</a>
+        <a href="prototype/index.html" class="text-[16px] font-bold px-7 h-14 inline-flex items-center rounded-[6px] border-2 border-white/40 text-white hover:bg-white/10 transition-colors">צפו במוצר</a>
+      </div>
+    </div>
+
+    <!-- live product mockup -->
+    <div class="fu d3 floaty relative z-10">
+      <div class="bg-white rounded-[14px] overflow-hidden" style="box-shadow:0 40px 100px rgba(0,0,0,.35)">
+        <div class="flex items-center gap-1.5 px-4 h-10 border-b border-black/5 bg-[#FAFAFA]">
+          <span class="w-3 h-3 rounded-full bg-[#FC5753]"></span><span class="w-3 h-3 rounded-full bg-[#FDBC40]"></span><span class="w-3 h-3 rounded-full bg-[#33C748]"></span>
+          <span class="mono text-[11px] text-black/40 mr-3">tender-ai.co.il</span>
+        </div>
+        <div class="p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div><div class="text-[11px] font-bold text-black/45 uppercase tracking-wide">מכרז #44/2026 · משרד התחבורה</div><div class="disp text-[17px] font-bold mt-0.5">ניהול מערך תחבורה עירוני</div></div>
+            <span class="inline-flex items-center gap-1.5 text-[12px] font-bold px-2.5 h-7 rounded-full" style="background:rgba(22,163,74,.1);color:#15803D">● מומלץ לגשת</span>
+          </div>
+          <div class="grid grid-cols-[110px_1fr] gap-4 items-center mb-4">
+            <div class="relative w-[110px] h-[110px]">
+              <svg width="110" height="110" style="transform:rotate(-90deg)"><circle cx="55" cy="55" r="38" fill="none" stroke="#EEF1F4" stroke-width="9"/><circle class="ring" cx="55" cy="55" r="38" fill="none" stroke="url(#gr)" stroke-width="9" stroke-linecap="round" stroke-dasharray="239"/><defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0D8A5F"/><stop offset="1" stop-color="#0E7FBF"/></linearGradient></defs></svg>
+              <div class="absolute inset-0 grid place-items-center"><div class="text-center"><div class="disp text-[26px] font-black leading-none">78%</div><div class="text-[10px] text-black/45 font-semibold">התאמה</div></div></div>
+            </div>
+            <div class="space-y-2.5">
+              <div><div class="flex justify-between text-[11px] font-semibold text-black/55 mb-1"><span>ניסיון רלוונטי</span><span>4/4</span></div><div class="h-2 rounded-full bg-[#EEF1F4] overflow-hidden"><div class="bar h-full rounded-full" style="--w:100%;background:#16A34A"></div></div></div>
+              <div><div class="flex justify-between text-[11px] font-semibold text-black/55 mb-1"><span>אישורים</span><span>2/3</span></div><div class="h-2 rounded-full bg-[#EEF1F4] overflow-hidden"><div class="bar h-full rounded-full" style="--w:66%;background:#F59E0B"></div></div></div>
+              <div><div class="flex justify-between text-[11px] font-semibold text-black/55 mb-1"><span>טיוטה מוכנה</span><span>6/8 סעיפים</span></div><div class="h-2 rounded-full bg-[#EEF1F4] overflow-hidden"><div class="bar h-full rounded-full" style="--w:75%;background:linear-gradient(90deg,#0D8A5F,#0E7FBF)"></div></div></div>
+            </div>
+          </div>
+          <div class="rounded-[10px] border border-black/8 p-3.5" style="background:#FAFCFB">
+            <div class="text-[11px] font-bold text-black/45 mb-1">סעיף: ניסיון המציע</div>
+            <div class="text-[13px] leading-relaxed text-black/80">החברה ניהלה מערך תחבורה שיתופית עבור <b>11 רשויות מקומיות</b>, כולל ניתוח סקרים ועיבוד נתונים…</div>
+            <div class="mt-2 flex items-center gap-2">
+              <span class="text-[10px] font-bold px-2 h-6 inline-flex items-center rounded-full" style="background:rgba(37,99,235,.08);color:#2563EB">מבוסס על: נתיב ירוק לעבודה</span>
+              <span class="text-[10px] font-bold px-2 h-6 inline-flex items-center rounded-full" style="background:rgba(22,163,74,.1);color:#15803D">ביטחון 94</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ SOCIAL PROOF STRIP ============ -->
+<div class="border-b border-black/5 bg-white">
+  <div class="mx-auto max-w-[1280px] px-6 py-6 flex flex-wrap items-center justify-center gap-x-12 gap-y-3 text-[13px] font-semibold text-black/35">
+    <span>נבנה עבור חברות שניגשות למכרזי:</span>
+    <span class="text-black/55">משרדי ממשלה</span><span class="text-black/55">רשויות מקומיות</span><span class="text-black/55">חברות ממשלתיות</span><span class="text-black/55">מוסדות בריאות</span><span class="text-black/55">מערכת הביטחון</span>
+  </div>
+</div>
+
+<!-- ============ PROBLEM — big numbers dark ============ -->
+<section class="section-dark text-white">
+  <div class="mx-auto max-w-[1280px] px-6 py-24">
+    <div class="reveal max-w-[720px] mb-16">
+      <div class="text-[13px] font-bold tracking-[0.22em] uppercase text-white/50 mb-4">הבעיה</div>
+      <h2 class="disp font-black leading-[1.08]" style="font-size:clamp(32px,4vw,52px)">כל מכרז שנפסל על פגם טכני —<br><span style="color:#4ADE80">שרף חודש עבודה של הצוות שלכם</span></h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-12">
+      <div class="reveal"><div class="disp font-black text-[64px] leading-none" style="color:#4ADE80">205K₪</div><div class="mt-3 text-[16px] text-white/70 leading-relaxed">עלות שנתית ממוצעת של שעות עבודה שיורדות לטמיון על הגשות כושלות</div></div>
+      <div class="reveal" style="transition-delay:.1s"><div class="disp font-black text-[64px] leading-none" style="color:#4ADE80">65</div><div class="mt-3 text-[16px] text-white/70 leading-relaxed">שעות עבודה ממוצעות להגשה אחת — רובן העתקה ושכתוב ידני של אותם נתונים</div></div>
+      <div class="reveal" style="transition-delay:.2s"><div class="disp font-black text-[64px] leading-none" style="color:#4ADE80">75%</div><div class="mt-3 text-[16px] text-white/70 leading-relaxed">מהפסילות נגרמות מפגמים טכניים שניתן היה למנוע — ערבות, אישור פג תוקף, חתימה חסרה</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS — 3 steps ============ -->
+<section class="bg-white">
+  <div class="mx-auto max-w-[1280px] px-6 py-24">
+    <div class="reveal text-center max-w-[680px] mx-auto mb-16">
+      <div class="text-[13px] font-bold tracking-[0.22em] uppercase mb-4" style="color:var(--g1)">איך זה עובד</div>
+      <h2 class="disp font-black leading-[1.1]" style="font-size:clamp(30px,3.6vw,46px)">מהזיכרון הארגוני שלכם — לטיוטה מנצחת</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="reveal rounded-[16px] border border-black/8 p-8 hover:shadow-xl transition-shadow">
+        <div class="disp font-black text-[40px] mb-4" style="color:var(--g1)">01</div>
+        <h3 class="disp text-[22px] font-bold mb-3">המערכת לומדת אתכם</h3>
+        <p class="text-[15px] leading-relaxed text-black/60">מעלים את כל מסמכי החברה — פרויקטים, אישורים, מאזנים. המערכת מפרקת אותם לזיכרון ארגוני מובנה שהולך ומשתבח.</p>
+      </div>
+      <div class="reveal rounded-[16px] border border-black/8 p-8 hover:shadow-xl transition-shadow" style="transition-delay:.1s">
+        <div class="disp font-black text-[40px] mb-4" style="color:var(--g1)">02</div>
+        <h3 class="disp text-[22px] font-bold mb-3">מזינים מכרז — מקבלים החלטה</h3>
+        <p class="text-[15px] leading-relaxed text-black/60">המערכת מפענחת תנאי סף, מצליבה מול היכולות שלכם, ומחזירה ציון התאמה + ניתוח פערים. Go או No-Go — בדקות, לא בימים.</p>
+      </div>
+      <div class="reveal rounded-[16px] border border-black/8 p-8 hover:shadow-xl transition-shadow" style="transition-delay:.2s">
+        <div class="disp font-black text-[40px] mb-4" style="color:var(--g1)">03</div>
+        <h3 class="disp text-[22px] font-bold mb-3">טיוטה עם הוכחות</h3>
+        <p class="text-[15px] leading-relaxed text-black/60">כל פסקה נשענת על מקור אמיתי מהזיכרון שלכם, עם ציון ביטחון. אין נתון? המערכת אומרת — לא ממציאה.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIFFERENTIATOR — gradient band ============ -->
+<section class="hero-grad text-white">
+  <div class="mx-auto max-w-[1280px] px-6 py-24 grid lg:grid-cols-2 gap-16 items-center">
+    <div class="reveal">
+      <div class="text-[13px] font-bold tracking-[0.22em] uppercase text-white/70 mb-4">אפס הזיות</div>
+      <h2 class="disp font-black leading-[1.1] mb-6" style="font-size:clamp(30px,3.6vw,46px)">כל משפט —<br>עם תעודת מקור</h2>
+      <p class="text-[17px] leading-relaxed text-white/85 max-w-[460px] mb-8">מערכות AI רגילות ממציאות. במכרז ציבורי, המצאה אחת = פסילה או תביעה. אצלנו כל פסקה מגובה במסמך אמיתי שלכם, עם ציון ביטחון גלוי — ומה שחסר מסומן בבירור להשלמה ידנית.</p>
+      <ul class="space-y-3 text-[15px] font-medium">
+        <li class="flex items-center gap-3"><span class="grid place-items-center w-6 h-6 rounded-full bg-white/20 text-[12px]">✓</span>ציון ביטחון לכל פסקה</li>
+        <li class="flex items-center gap-3"><span class="grid place-items-center w-6 h-6 rounded-full bg-white/20 text-[12px]">✓</span>הפניה למסמך המקור</li>
+        <li class="flex items-center gap-3"><span class="grid place-items-center w-6 h-6 rounded-full bg-white/20 text-[12px]">✓</span>נתון חסר? מסומן — לא מומצא</li>
+      </ul>
+    </div>
+    <div class="reveal bg-white rounded-[14px] p-6 text-black" style="box-shadow:0 30px 80px rgba(0,0,0,.3)">
+      <div class="text-[11px] font-bold text-black/45 uppercase tracking-wide mb-3">טיוטת מענה · סעיף 1</div>
+      <p class="text-[15px] leading-[1.9] text-black/85">החברה מביאה ניסיון מוכח בניהול מערכי תחבורה עירונית. בפרויקט "נתיב ירוק לעבודה" ניהלה מערך שיתופי עבור <mark style="background:rgba(22,163,74,.15);padding:0 3px;border-radius:3px">11 רשויות מקומיות</mark> כולל <mark style="background:rgba(22,163,74,.15);padding:0 3px;border-radius:3px">ניתוח סקרים</mark> ועיבוד נתונים בזמן אמת.</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <span class="text-[11px] font-bold px-2.5 h-7 inline-flex items-center rounded-full" style="background:rgba(37,99,235,.08);color:#2563EB">📄 מבוסס על: נתיב ירוק לעבודה</span>
+        <span class="text-[11px] font-bold px-2.5 h-7 inline-flex items-center rounded-full" style="background:rgba(22,163,74,.12);color:#15803D">● ביטחון 94</span>
+      </div>
+      <div class="mt-4 rounded-[10px] border-2 border-dashed p-3.5" style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.05)">
+        <div class="text-[12px] font-bold" style="color:#B45309">⚠ סעיף 3: נדרש נתון על ערים 100K+ — לא נמצא בזיכרון. המערכת לא תמציא אותו.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULTS — dark stats ============ -->
+<section class="section-dark text-white">
+  <div class="mx-auto max-w-[1280px] px-6 py-24 text-center">
+    <div class="reveal text-[13px] font-bold tracking-[0.22em] uppercase text-white/50 mb-4">התוצאה</div>
+    <h2 class="reveal disp font-black leading-[1.1] mb-16" style="font-size:clamp(30px,3.6vw,46px)">מה זה עושה לעסק שלכם</h2>
+    <div class="grid md:grid-cols-3 gap-12">
+      <div class="reveal"><div class="disp font-black text-[72px] leading-none" style="background:linear-gradient(115deg,#4ADE80,#38BDF8);-webkit-background-clip:text;background-clip:text;color:transparent">60%-</div><div class="mt-3 text-[16px] text-white/70">מזמן ההכנה של כל הגשה</div></div>
+      <div class="reveal" style="transition-delay:.1s"><div class="disp font-black text-[72px] leading-none" style="background:linear-gradient(115deg,#4ADE80,#38BDF8);-webkit-background-clip:text;background-clip:text;color:transparent">0</div><div class="mt-3 text-[16px] text-white/70">פסילות על פגמים שהמערכת סרקה</div></div>
+      <div class="reveal" style="transition-delay:.2s"><div class="disp font-black text-[72px] leading-none" style="background:linear-gradient(115deg,#4ADE80,#38BDF8);-webkit-background-clip:text;background-clip:text;color:transparent">x2</div><div class="mt-3 text-[16px] text-white/70">יותר מכרזים באותו כוח אדם</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="bg-white">
+  <div class="mx-auto max-w-[880px] px-6 py-24 text-center">
+    <h2 class="reveal disp font-black leading-[1.1] mb-6" style="font-size:clamp(30px,3.8vw,48px)">מוכנים להפסיק להפסיד<br>מכרזים על שטויות?</h2>
+    <p class="reveal text-[17px] text-black/60 mb-9">צפו בהדגמה חיה של המערכת — עם הנתונים שלכם.</p>
+    <div class="reveal flex items-center justify-center gap-4">
+      <a href="prototype/index.html" class="text-[16px] font-bold text-white px-8 h-14 inline-flex items-center rounded-[6px] hover:scale-[1.02] transition-transform" style="background:linear-gradient(115deg,var(--g1),var(--g2))">בקשו הדגמה ←</a>
+      <a href="prototype/index.html" class="text-[16px] font-bold px-8 h-14 inline-flex items-center rounded-[6px] border-2 border-black/15 hover:border-black/40 transition-colors">סיור במוצר</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="section-dark text-white/60">
+  <div class="mx-auto max-w-[1280px] px-6 py-14 flex flex-wrap items-center justify-between gap-6">
+    <div class="flex items-center gap-2.5"><span class="grid place-items-center w-8 h-8 rounded-[8px] text-white font-extrabold text-[13px]" style="background:linear-gradient(135deg,var(--g1),var(--g2))">UC</span><span class="disp text-[16px] font-bold text-white">UC TENDER</span></div>
+    <div class="text-[13px]">🛡 SOC2 · Zero Data Retention · הנתונים שלכם לא מאמנים מודלים</div>
+    <div class="text-[12px] text-white/40">© 2026 כל הזכויות שמורות</div>
+  </div>
+</footer>
+
+<script>
+// scroll reveal
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

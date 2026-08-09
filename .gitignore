@@ -1,0 +1,28 @@
+# --- תלויות ---
+node_modules/
+**/node_modules/
+
+# --- סודות (אסור לעלות!) ---
+.env
+**/.env
+!.env.example
+
+# --- נתוני ריצה (נוצרים מ-schema.js seed) ---
+server/src/data/db.json
+server/uploads/
+uploads/
+
+# --- לוגים וזמניים ---
+*.log
+_srv.log
+npm-debug.log*
+
+# --- הגדרות מקומיות של Claude Code ---
+.claude/settings.local.json
+
+# --- מערכת הפעלה / עורך ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
