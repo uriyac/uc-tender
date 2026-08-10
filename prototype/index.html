@@ -513,10 +513,9 @@
     const band = score>=75?['התאמה גבוהה','הניסיון שלך רלוונטי מאוד למכרז זה.'] : score>=50?['התאמה בינונית','יש בסיס טוב, אך כמה פערים להשלמה.'] : ['התאמה נמוכה','חסרים כמה מרכיבי ליבה — שקול היטב.'];
     set('an-score-title',band[0]); set('an-score-sub',band[1]);
     const met=data.met||[], gaps=data.gaps||[], fails=data.fails||[], total=met.length+gaps.length+fails.length||1;
-    set('an-met-count',met.length); set('an-gap-count',gaps.length); set('an-fail-count',fails.length);
-    document.getElementById('an-met').innerHTML = met.length? met.map(m=>`<li class="flex items-start gap-2.5"><span style="color:oklch(0.62 0.15 155)">✓</span>${m}</li>`).join('') : '<li class="t-12 text-black/45">—</li>';
-    document.getElementById('an-gaps').innerHTML = gaps.length? gaps.map(g=>`<li><div class="flex items-start gap-2.5 font-medium mb-1"><span style="color:var(--amber-signal)">⚠</span>${g.text||g}</div>${g.hint?`<div class="pr-[26px] t-12 text-black/55">${g.hint}</div>`:''}</li>`).join('') : '<li class="t-12 text-black/45">אין פערים — כיסוי מלא</li>';
-    document.getElementById('an-fails').innerHTML = fails.length? fails.map(f=>`<div class="flex items-start gap-2.5 t-13 mb-1"><span style="color:oklch(0.58 0.22 25)">✕</span>${f.text||f}</div>`).join('') : '<span class="w-1.5 h-1.5 rounded-full bg-black/20"></span>אין פערים קריטיים';
+    window.currentTenderId = id;
+    renderStateBar(met, gaps, fails);   // שורת סיכום דקה (מבט-על)
+    renderGapsDetail(gaps);             // סביבת העבודה — הפערים חיים כאן בלבד
 
     // סיכום מכרז מובנה (B11)
     const sumItems=[['ערבות',t.guarantee],['משך',t.duration],['מועד הגשה',t.deadline||(t.days!=null?('בעוד '+t.days+' ימים'):null)],['סיווג נדרש',t.classification],['מחזור מינ׳',t.min_turnover]].filter(x=>x[1]);
@@ -544,6 +543,84 @@
     }
   }
   window.renderAnalysis=renderAnalysis;
+
+  // --- השלמת פערים במסך הניתוח: "מה צריך" + טיפול ידני (שימוש חוזר ב-resolveGap/clearGap) ---
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  // ניקוי טקסט דרישה לתצוגה: טאבים→רווח, כיווץ רווחים, הסרת מספור-פריט מוביל ("3 . ") ובוליטים.
+  // שומר מספרי-סעיף מרובי-חלקים (4.1.2) שהם הפניה משמעותית.
+  function cleanReq(s){return String(s==null?'':s).replace(/\t/g,' ').replace(/\s+/g,' ').replace(/^[•\-–—]\s*/,'').replace(/^\d+\s*[.．]\s+/,'').trim();}
+
+  // שורת סיכום דקה: מוני מצב במקום שלוש עמודות. "עומדים"/"לא עומדים" נפתחים בלחיצה; "פערים" גולל לסביבת העבודה.
+  function renderStateBar(met, gaps, fails){
+    const el=document.getElementById('an-statebar'); if(!el) return;
+    const chip=(bg,bd,fg,inner,attrs='')=>`<button type="button" ${attrs} class="inline-flex items-center gap-2 t-13 font-semibold px-3.5 h-9 rounded-full border" style="background:${bg};border-color:${bd};color:${fg}">${inner}</button>`;
+    const G=['oklch(0.62 0.15 155 / 0.08)','oklch(0.62 0.15 155 / 0.32)','oklch(0.42 0.14 155)'];
+    const A=['oklch(0.72 0.16 70 / 0.10)','oklch(0.72 0.16 70 / 0.40)','var(--amber-signal)'];
+    const M=['#FFFFFF','var(--hairline)','rgba(15,30,61,.55)'];
+    const metChip = met.length
+      ? chip(...G,`<span>✓</span><span class="tabular-nums">${met.length}</span> עומדים <span class="t-10 opacity-60">▾</span>`,'onclick="anToggleMet(this)" style="cursor:pointer"')
+      : chip(...M,`<span>✓</span><span class="tabular-nums">0</span> עומדים`);
+    const gapChip = gaps.length
+      ? chip(...A,`<span>⚠</span><span class="tabular-nums">${gaps.length}</span> פערים <span class="t-10 opacity-60">↓</span>`,`onclick="document.getElementById('an-gaps-detail').scrollIntoView({behavior:'smooth',block:'start'})" style="cursor:pointer"`)
+      : chip(...G,`<span>✓</span><span class="tabular-nums">0</span> פערים`);
+    const failChip = fails.length
+      ? chip('oklch(0.58 0.22 25 / 0.06)','oklch(0.58 0.22 25 / 0.30)','oklch(0.5 0.2 25)',`<span>✕</span><span class="tabular-nums">${fails.length}</span> לא עומדים <span class="t-10 opacity-60">▾</span>`,'onclick="anToggleMet(this)" style="cursor:pointer"')
+      : chip(...M,`<span>✕</span><span class="tabular-nums">0</span> לא עומדים`);
+    const metList = met.length ? `<ul class="space-y-2">${met.map(m=>`<li class="flex items-start gap-2.5 t-13"><span style="color:oklch(0.62 0.15 155)">✓</span>${esc(cleanReq(m))}</li>`).join('')}</ul>` : '<div class="t-12 text-black/45">—</div>';
+    const failList = fails.length ? `<div class="t-11 font-semibold uppercase tracking-wide text-black/45 mt-4 mb-2.5">לא עומדים בדרישות</div><ul class="space-y-2">${fails.map(f=>`<li class="flex items-start gap-2.5 t-13"><span style="color:oklch(0.58 0.22 25)">✕</span>${esc(cleanReq(f.text||f))}</li>`).join('')}</ul>` : '';
+    el.innerHTML = `<div class="rounded-[8px] border bg-white card-soft p-4" style="border-color:var(--hairline)">
+      <div class="flex items-center gap-2.5 flex-wrap">${metChip}${gapChip}${failChip}<span class="mr-auto t-11 text-black/45">מבוסס על הזיכרון הארגוני</span></div>
+      <div id="an-met-list" class="hidden mt-4 pt-4 border-t" style="border-color:var(--hairline-soft)"><div class="t-11 font-semibold uppercase tracking-wide text-black/45 mb-2.5">עומדים בדרישות</div>${metList}${failList}</div>
+    </div>`;
+  }
+  function anToggleMet(){ const m=document.getElementById('an-met-list'); if(m) m.classList.toggle('hidden'); }
+  window.renderStateBar=renderStateBar; window.anToggleMet=anToggleMet;
+
+  function gapCard(g){
+    const id=g.id, text=esc(cleanReq(g.text||g)), hint=esc(g.hint||'אין ממד תואם בזיכרון הארגוני');
+    if(g.manualText){
+      return `<div class="rounded-[8px] border p-4 md:p-5" style="border-color:oklch(0.62 0.15 155 / 0.35);background:oklch(0.62 0.15 155 / 0.05)"><div class="flex items-start justify-between gap-4 flex-wrap"><div class="flex-1 min-w-[240px]"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.62 0.15 155 / 0.15);color:oklch(0.42 0.14 155)">✓ טופל</span><div class="t-15 font-medium mt-2 mb-1.5">${text}</div><div class="t-12 text-black/60">התשובה שלך: <span class="italic">"${esc(g.manualText)}"</span></div></div><button onclick="anClearGap('${id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[6px] h-9 px-4 bg-white shrink-0" style="border-color:var(--hairline)">בטל</button></div></div>`;
+    }
+    return `<div class="rounded-[8px] border p-4 md:p-5" style="border-color:oklch(0.72 0.16 70 / 0.35);background:oklch(0.72 0.16 70 / 0.04)">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div class="flex-1 min-w-[240px]"><div class="flex items-center gap-2 mb-1.5"><span style="color:var(--amber-signal)">⚠</span><span class="t-10 font-semibold uppercase tracking-wide text-black/45">מה צריך</span></div><div class="t-15 font-medium mb-1.5">${text}</div><div class="t-12 text-black/55">${hint}</div></div>
+        ${id?`<div class="flex flex-col gap-1.5 shrink-0"><button onclick="anOpenEditor('${id}')" class="t-13 font-semibold h-9 px-4 rounded-[6px] border bg-white inline-flex items-center justify-center gap-1.5" style="border-color:var(--signal-20);color:var(--signal)">✎ טפל בפער</button><button onclick="anUpload('${id}')" class="t-12 font-semibold h-9 px-4 rounded-[6px] border bg-white inline-flex items-center justify-center gap-1.5 text-black/55" style="border-color:var(--hairline)">⬆ העלה חומר</button></div>`:''}
+      </div>
+      ${id?`<div id="aned-${id}" class="hidden mt-3 pt-3 border-t" style="border-color:oklch(0.72 0.16 70 / 0.25)"><textarea id="anta-${id}" rows="3" class="w-full t-13 p-3 rounded-[6px] border bg-white" style="border-color:var(--hairline)" placeholder="כתוב את תשובתך לדרישה — טקסט חופשי, ייכנס לטיוטה כפי שהוא"></textarea><div class="flex items-center gap-2 mt-2"><button onclick="anSaveGap('${id}')" class="t-13 font-semibold h-9 px-5 rounded-[6px] text-white" style="background:var(--signal)">שמור</button><button onclick="anCloseEditor('${id}')" class="t-13 font-semibold h-9 px-4 rounded-[6px] border bg-white text-black/55" style="border-color:var(--hairline)">בטל</button></div></div>`:''}
+    </div>`;
+  }
+  function renderGapsDetail(gaps){
+    const el=document.getElementById('an-gaps-detail'); if(!el) return;
+    if(!gaps.length){ el.innerHTML=''; return; }
+    const actionable=gaps.filter(g=>g.id), handled=actionable.filter(g=>g.manualText).length;
+    const allDone = actionable.length>0 && handled===actionable.length;
+    const banner = allDone
+      ? `<div class="rounded-[8px] border p-4 mb-5 flex items-center gap-3" style="border-color:oklch(0.62 0.15 155 / 0.35);background:oklch(0.62 0.15 155 / 0.06)"><span class="text-[20px]" style="color:oklch(0.48 0.14 155)">✓</span><div><div class="t-15 font-semibold" style="color:oklch(0.4 0.13 155)">כל הפערים נסגרו</div><div class="t-12 text-black/60">כל דרישה קיבלה מקור או השלמה ידנית — אפשר ליצור טיוטה.</div></div></div>`
+      : '';
+    el.innerHTML=`<div class="rounded-[8px] border bg-white card-soft p-6" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-1 flex-wrap gap-2"><h2 class="t-24 font-semibold tracking-tight">השלמת פערים</h2>${actionable.length?`<div class="t-12 font-semibold" style="color:${allDone?'oklch(0.48 0.14 155)':'var(--amber-signal)'}">${handled}/${actionable.length} טופלו</div>`:''}</div><p class="t-13 text-black/55 mb-5 max-w-[680px]">לכל דרישה שאין לה מקור בזיכרון הארגוני — כתוב מה נדרש והשלם ידנית, או העלה מסמך שמוכיח את העמידה. ההשלמה נכנסת לטיוטה כפי שהיא, ללא המצאה.</p>${banner}<div class="space-y-3">${gaps.map(gapCard).join('')}</div></div>`;
+  }
+  // עורך מוטמע: נפתח בתוך הכרטיס (במקום prompt של הדפדפן)
+  function anOpenEditor(id){ const e=document.getElementById('aned-'+id); if(!e) return; e.classList.remove('hidden'); const t=document.getElementById('anta-'+id); if(t) t.focus(); }
+  function anCloseEditor(id){ const e=document.getElementById('aned-'+id); if(e) e.classList.add('hidden'); }
+  async function anSaveGap(id){
+    const t=document.getElementById('anta-'+id); const v=t?t.value.trim():'';
+    if(!v){ if(t) t.focus(); return; }
+    try{ await window.API.resolveGap(window.currentTenderId,id,v); await renderAnalysis(window.currentTenderId); }
+    catch(e){ alert('שמירה נכשלה: '+e.message); }
+  }
+  async function anClearGap(reqId){
+    try{ await window.API.clearGap(window.currentTenderId,reqId); await renderAnalysis(window.currentTenderId); }
+    catch(e){ alert('ביטול נכשל: '+e.message); }
+  }
+  // העלאת חומר לפער: נכנס לזיכרון הארגוני, ואז ניתוח מחדש (ייתכן שהפער ייסגר אוטומטית)
+  let anPendingUploadReqId=null;
+  function anUpload(reqId){ anPendingUploadReqId=reqId; const inp=document.getElementById('an-material'); if(inp) inp.click(); }
+  async function anMaterialChosen(input){
+    if(!input.files||!input.files.length) return;
+    try{ await window.API.uploadGapMaterial(input.files); input.value=''; await renderAnalysis(window.currentTenderId); }
+    catch(e){ input.value=''; alert('העלאה נכשלה: '+e.message); }
+  }
+  window.anOpenEditor=anOpenEditor; window.anCloseEditor=anCloseEditor; window.anSaveGap=anSaveGap; window.anClearGap=anClearGap; window.anUpload=anUpload; window.anMaterialChosen=anMaterialChosen;
 </script>
 
 <!-- ============================= TENDER ANALYSIS ============================= -->
@@ -560,16 +637,13 @@
         </div>
         <div id="an-reco" class="rounded-[8px] border p-5 flex items-start gap-4" style="border-color:var(--hairline)"></div>
       </div>
-      <div class="mb-10"><div class="flex items-baseline justify-between mb-4"><h2 class="t-24 font-semibold tracking-tight">ניתוח פערים</h2><div class="t-11 text-black/50">מבוסס על הזיכרון הארגוני</div></div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-center justify-between mb-4 pb-3 border-b" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2" style="color:oklch(0.62 0.15 155)">✓ <h3 class="t-13 font-semibold text-black">עומדים בדרישות</h3></div><span id="an-met-count" class="t-11 font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] text-black/60">0</span></div><ul id="an-met" class="space-y-2.5 t-13"></ul></div>
-          <div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-center justify-between mb-4 pb-3 border-b" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2" style="color:var(--amber-signal)">⚠ <h3 class="t-13 font-semibold text-black">פערים להשלמה</h3></div><span id="an-gap-count" class="t-11 font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] text-black/60">0</span></div><ul id="an-gaps" class="space-y-3.5 t-13"></ul></div>
-          <div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-center justify-between mb-4 pb-3 border-b" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2" style="color:oklch(0.58 0.22 25)">✕ <h3 class="t-13 font-semibold text-black">לא עומדים</h3></div><span id="an-fail-count" class="t-11 font-semibold px-2 py-0.5 rounded-full text-black/50" style="background:#FAFAF7">0</span></div><div id="an-fails" class="flex items-center gap-2 t-12 text-black/50"><span class="w-1.5 h-1.5 rounded-full bg-black/20"></span>אין פערים קריטיים</div></div>
-        </div></div>
+      <div id="an-statebar" class="mb-8"></div>
+      <input id="an-material" type="file" multiple class="hidden" onchange="anMaterialChosen(this)" />
+      <div id="an-gaps-detail" class="mb-10"></div>
       <div id="an-thresholds" class="mb-8"></div>
       <div id="an-redflags" class="mb-10"></div>
       <div class="mb-10"><div class="rounded-[8px] border border-dashed p-6" style="border-color:#D6D6CE;background:rgba(255,255,255,0.6)"><div class="flex items-start gap-4"><div class="w-10 h-10 rounded-[6px] bg-black/[0.04] flex items-center justify-center shrink-0 text-black/50">🔒</div><div class="flex-1"><div class="flex items-center gap-2 mb-1.5"><h3 class="t-15 font-semibold">ניתוח מתחרים</h3><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></div><p class="t-12 text-black/55 max-w-[640px]">ניתוח מתחרים וסיכויי זכייה מבוסס נתוני שוק — יתווסף בשלב הבא (Phase 2).</p></div></div></div></div>
-      <div class="flex flex-wrap items-center gap-3 pt-6 border-t" style="border-color:var(--hairline)"><button onclick="go('draft-mapping')" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ צור טיוטה</button><button onclick="go('dashboard')" class="inline-flex items-center gap-2 h-12 px-5 rounded-[8px] border bg-white card-soft t-13 font-medium" style="border-color:#D6D6CE">🗄 ארכב — לא נגש</button><div class="t-11 text-black/50 mr-auto">הטיוטה תיווצר על סמך הזיכרון הארגוני בלבד — ללא הזיות.</div></div>
+      <div class="flex flex-wrap items-center gap-3 pt-6 border-t" style="border-color:var(--hairline)"><button onclick="go('draft-mapping')" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ צור טיוטה</button><button disabled title="ארכוב מכרזים יתווסף בקרוב" class="inline-flex items-center gap-2 h-12 px-5 rounded-[8px] border bg-white t-13 font-medium text-black/40 cursor-not-allowed" style="border-color:#D6D6CE">ארכב מכרז <span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></button><div class="t-11 text-black/50 mr-auto">הטיוטה תיווצר על סמך הזיכרון הארגוני בלבד — ללא הזיות.</div></div>
     </div>
   </div>
 </section>

@@ -214,7 +214,7 @@ export function analyzeMatch(requirements, kb) {
   const met = [], gaps = [];
   for (const r of requirements) {
     if (overlap(r.text, kbText) >= 1) met.push(r.text);
-    else gaps.push({ text: r.text, hint: 'אין ממד תואם בזיכרון — ניתן להשלים ידנית' });
+    else gaps.push({ id: r.id, text: r.text, hint: 'אין ממד תואם בזיכרון — ניתן להשלים ידנית' });
   }
   const total = requirements.length || 1;
   const matchScore = Math.round((met.length / total) * 100);

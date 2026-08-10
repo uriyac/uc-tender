@@ -82,6 +82,12 @@ r.get('/:id/analysis', async (req, res) => {
     eng.checkThresholds(t.raw_text || '', store.company()),
     eng.checkRedFlags(t.raw_text || ''),
   ]);
+  // העשרת כל פער במצב ההשלמה הידנית (manual_text) כדי שמסך הניתוח יוכל לטפל בו ולהציג "טופל"
+  const byId = Object.fromEntries(reqs.map((r) => [r.id, r]));
+  analysis.gaps = (analysis.gaps || []).map((g) => ({
+    ...g,
+    manualText: (g.id && byId[g.id] && byId[g.id].manual_text) || null,
+  }));
   res.json({ tender: t, ...analysis, thresholds, redFlags });
 });
 

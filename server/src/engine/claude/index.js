@@ -245,10 +245,10 @@ export async function analyzeMatch(requirements, kb) {
       required: ['items'],
     },
   });
-  const items = out.items || [];
+  const items = (out.items || []).map((x, i) => ({ ...x, id: requirements[i] && requirements[i].id }));
   const met = items.filter((x) => x.verdict === 'met').map((x) => x.text);
-  const gaps = items.filter((x) => x.verdict === 'gap').map((x) => ({ text: x.text, hint: x.hint }));
-  const fails = items.filter((x) => x.verdict === 'fail').map((x) => ({ text: x.text, hint: x.hint }));
+  const gaps = items.filter((x) => x.verdict === 'gap').map((x) => ({ id: x.id, text: x.text, hint: x.hint }));
+  const fails = items.filter((x) => x.verdict === 'fail').map((x) => ({ id: x.id, text: x.text, hint: x.hint }));
   const total = items.length || requirements.length || 1;
   return { matchScore: Math.round((met.length / total) * 100), met, gaps, fails };
 }
