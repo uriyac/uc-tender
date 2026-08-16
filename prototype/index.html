@@ -84,7 +84,7 @@
         </ul>
       </div>
       <div class="p-4" style="border-top:1px solid var(--navy-soft)">
-        <div class="hidden lg:flex items-center gap-2 t-11 text-white/55"><span class="text-emerald-400">🛡</span><span class="font-semibold tracking-wide">SOC2 · Zero Retention</span></div>
+        <div class="hidden lg:flex items-center gap-2 t-11 text-white/55"><span class="text-emerald-400">🛡</span><span class="font-semibold tracking-wide">נתונים מקומיים · ללא ענן</span></div>
       </div>
     </nav>
 
@@ -99,7 +99,7 @@
         </div>
         <button class="hidden md:inline-flex items-center gap-2 h-11 px-3 border rounded-[8px] t-12 text-black/60 hover:text-black" style="border-color:var(--hairline)">🔍<span>חפש מכרז, מסמך, סעיף…</span><kbd class="font-mono t-10 text-black/55 border border-black/10 px-1 rounded-sm">⌘K</kbd></button>
         <div class="flex items-center gap-2 shrink-0">
-          <span class="t-11 font-semibold border px-3 h-11 inline-flex items-center rounded-[8px]" style="border-color:var(--hairline)">עב / EN</span>
+          <!-- מתג שפה — יחזור פעיל כשתיבנה תמיכת i18n (עברית/אנגלית) --><span class="hidden t-11 font-semibold border px-3 h-11 items-center rounded-[8px]" style="border-color:var(--hairline)">עב / EN</span>
           <button class="t-12 font-semibold border px-3 h-11 rounded-[8px] hover:border-black/40" style="border-color:var(--hairline)">ייצוא CSV</button>
           <button onclick="go('tender-new')" class="text-white t-12 font-semibold px-4 h-11 rounded-[8px]" style="background:var(--signal)">מכרז חדש</button>
         </div>
@@ -947,12 +947,12 @@
       <nav class="w-16 lg:w-60 flex flex-col shrink-0" style="background:var(--navy)">
         <a onclick="go('dashboard')" class="h-14 px-4 lg:px-5 flex items-center gap-3 cursor-pointer" style="border-bottom:1px solid var(--navy-soft)"><div class="w-7 h-7 flex items-center justify-center rounded-[6px]" style="background:var(--signal)"><div class="w-2.5 h-2.5 bg-white rounded-[1px]"></div></div><span class="hidden lg:block font-semibold tracking-tight t-15 text-white">UC TENDER</span></a>
         <div class="flex-1 py-4"><div class="hidden lg:block px-5 mb-2 t-10 font-semibold tracking-[0.18em] uppercase text-white/40">סביבת עבודה</div><ul class="space-y-1 px-2">${navHtml}</ul></div>
-        <div class="p-4" style="border-top:1px solid var(--navy-soft)"><div class="hidden lg:flex items-center gap-2 t-11 text-white/55"><span class="text-emerald-400">🛡</span><span class="font-semibold tracking-wide">SOC2 · Zero Retention</span></div></div>
+        <div class="p-4" style="border-top:1px solid var(--navy-soft)"><div class="hidden lg:flex items-center gap-2 t-11 text-white/55"><span class="text-emerald-400">🛡</span><span class="font-semibold tracking-wide">נתונים מקומיים · ללא ענן</span></div></div>
       </nav>
       <main class="flex-1 flex flex-col min-w-0">
         <header class="h-14 border-b flex items-center justify-between px-5 lg:px-8 bg-white shrink-0 gap-6" style="border-color:var(--hairline)">
           <nav class="flex items-center gap-1.5 t-13"><span class="text-black/55">סביבת עבודה</span><span class="text-black/25">/</span><span class="text-black font-semibold">${crumb}</span></nav>
-          <div class="flex items-center gap-2 shrink-0"><span class="t-11 font-semibold border px-3 h-11 inline-flex items-center rounded-[8px]" style="border-color:var(--hairline)">עב / EN</span><button onclick="go('tender-new')" class="text-white t-12 font-semibold px-4 h-11 rounded-[8px]" style="background:var(--signal)">מכרז חדש</button></div>
+          <div class="flex items-center gap-2 shrink-0"><!-- מתג שפה — יחזור פעיל כשתיבנה תמיכת i18n (עברית/אנגלית) --><span class="hidden t-11 font-semibold border px-3 h-11 items-center rounded-[8px]" style="border-color:var(--hairline)">עב / EN</span><button onclick="go('tender-new')" class="text-white t-12 font-semibold px-4 h-11 rounded-[8px]" style="background:var(--signal)">מכרז חדש</button></div>
         </header>
         <div class="flex-1 min-w-0 overflow-y-auto p-6 lg:p-10">${inner}</div>
       </main>
@@ -1037,7 +1037,7 @@
     const org=document.getElementById('set-org');
     if(org) org.innerHTML = row('שם העסק',c.name)+row('ישות משפטית',c.legal_entity)+row('ח.פ. / ע.מ.',c.reg_no,true)+row('כתובת',c.address)+row('אתר',c.website,true)+row('אימייל',c.email,true)+row('איש קשר',contact)+rowChips('תחומי התמחות',chips(c.specialties))+rowChips('אזורי פעילות',chips(c.regions));
     const prof=document.getElementById('set-profile');
-    if(prof) prof.innerHTML = row('תחום העיסוק המרכזי',c.main_domain)+row('פירוט השירותים',c.services)+row('שנות ניסיון (בכיר)',c.senior_experience_years)+row('תואר בעל התפקיד',c.key_person_title)+row('מחזור ממוצע (3ש׳)',c.avg_turnover)+row('עובדים מוסמכים (רו״ח/עו״ד)',c.certified_staff)+row('ניסיון עם גופים ציבוריים',c.public_sector_experience)+row('לקוחות בולטים',c.notable_clients);
+    if(prof) prof.innerHTML = row('תחום העיסוק המרכזי',c.main_domain)+row('פירוט השירותים',c.services)+row('שנות ניסיון (בכיר)',c.senior_experience_years)+row('תואר בעל התפקיד',c.key_person_title)+row('מחזור ממוצע (3 שנים)',c.avg_turnover)+row('עובדים מוסמכים (רו״ח/עו״ד)',c.certified_staff)+row('ניסיון עם גופים ציבוריים',c.public_sector_experience)+row('לקוחות בולטים',c.notable_clients);
   }
   window.renderSettings=renderSettings;
 
@@ -1060,12 +1060,45 @@
       <button onclick="rvFixCertValidity('${c.id}')" class="t-12 text-black/60 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">✎</button>
       <button onclick="rvDeleteCert('${c.id}')" class="t-12 text-black/40 hover:text-rose-600 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">🗑</button></li>`;
   }
+  const docExt=n=>((n||'').split('.').pop()||'').toLowerCase();
+  const docIcon=n=>{const e=docExt(n);return e==='pdf'?'📕':(e==='xlsx'||e==='xls')?'📊':(e==='docx'||e==='doc')?'📘':'📄';};
+
   function rvDocsByCat(docs){
     if(!docs.length) return '<div class="t-13 text-black/45 py-2">עדיין לא הועלו מסמכים.</div>';
     const by={}; docs.forEach(d=>{(by[d.category]=by[d.category]||[]).push(d);});
-    const cards=Object.keys(RV_CATS).filter(k=>(by[k]||[]).length).map(k=>`<div class="rounded-[8px] border bg-white p-4" style="border-color:var(--hairline)"><div class="t-12 font-semibold mb-2">${RV_CATS[k]} <span class="text-black/40">· ${by[k].length}</span></div><div class="flex flex-wrap gap-1.5">${by[k].map(d=>`<span class="t-11 px-2 h-6 inline-flex items-center rounded-[3px] bg-black/[0.04] text-black/70 max-w-full truncate">${d.filename}</span>`).join('')}</div></div>`).join('');
+    const cards=Object.keys(RV_CATS).filter(k=>(by[k]||[]).length).map(k=>`<div class="rounded-[8px] border bg-white p-4" style="border-color:var(--hairline)"><div class="t-12 font-semibold mb-2">${RV_CATS[k]} <span class="text-black/40">· ${by[k].length}</span></div><div class="flex flex-wrap gap-1.5">${by[k].map(d=>`<button type="button" data-doc-id="${d.id}" data-doc-name="${esc(d.filename)}" onclick="openDocViewer(this.dataset.docId,this.dataset.docName)" title="הצג ${esc(d.filename)}" class="t-11 px-2 h-6 inline-flex items-center gap-1 rounded-[3px] bg-black/[0.04] hover:bg-black/[0.08] text-black/70 max-w-full"><span>${docIcon(d.filename)}</span><span class="truncate">${esc(d.filename)}</span></button>`).join('')}</div></div>`).join('');
     return `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">${cards}</div>`;
   }
+
+  // ---- תצוגת מסמך (PDF מוטמע; שאר הפורמטים → הורדה) ----
+  function docFileUrl(id){ return '/api/documents/'+encodeURIComponent(id)+'/file'; }
+  function openDocViewer(id, filename){
+    const ext=docExt(filename), url=docFileUrl(id);
+    let ov=document.getElementById('doc-viewer');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='doc-viewer'; ov.className='fixed inset-0 z-50 hidden';
+      ov.innerHTML=`<div class="absolute inset-0 bg-black/60" onclick="closeDocViewer()"></div>
+        <div class="absolute inset-0 md:inset-6 lg:inset-10 bg-white md:rounded-[10px] overflow-hidden flex flex-col card-soft">
+          <div class="h-14 shrink-0 flex items-center justify-between gap-3 px-5 border-b" style="border-color:var(--hairline)">
+            <div class="flex items-center gap-2 min-w-0"><span id="dv-icon"></span><span id="dv-name" class="t-13 font-semibold truncate"></span></div>
+            <div class="flex items-center gap-2 shrink-0"><a id="dv-open" href="#" target="_blank" rel="noopener" class="t-12 font-semibold border rounded-[6px] h-9 px-3 inline-flex items-center gap-1.5" style="border-color:var(--hairline)">↗ כרטיסייה חדשה</a><button onclick="closeDocViewer()" class="t-12 font-semibold border rounded-[6px] h-9 px-3" style="border-color:var(--hairline)">✕ סגור</button></div>
+          </div>
+          <div id="dv-body" class="flex-1" style="background:#525659"></div>
+        </div>`;
+      document.body.appendChild(ov);
+      document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDocViewer(); });
+    }
+    document.getElementById('dv-name').textContent=filename||'מסמך';
+    document.getElementById('dv-icon').textContent=docIcon(filename);
+    document.getElementById('dv-open').href=url;
+    const body=document.getElementById('dv-body');
+    body.innerHTML = ext==='pdf'
+      ? `<iframe src="${url}" class="w-full h-full" style="border:0" title="תצוגת מסמך"></iframe>`
+      : `<div class="h-full flex flex-col items-center justify-center gap-3 text-center px-6 bg-white"><div class="text-[40px]">${docIcon(filename)}</div><div class="t-15 font-semibold">אין תצוגה מקדימה לקובץ ${ext?ext.toUpperCase():''}</div><div class="t-13 text-black/55 max-w-[420px]">הדפדפן מציג תצוגה מוטמעת ל-PDF בלבד. אפשר להוריד את הקובץ המקורי ולפתוח אותו במחשב.</div><a href="${url}" download class="mt-2 t-13 font-semibold text-white px-5 h-11 inline-flex items-center rounded-[8px]" style="background:var(--signal)">⬇ הורד קובץ</a></div>`;
+    ov.classList.remove('hidden'); document.body.style.overflow='hidden';
+  }
+  function closeDocViewer(){ const ov=document.getElementById('doc-viewer'); if(ov) ov.classList.add('hidden'); const b=document.getElementById('dv-body'); if(b) b.innerHTML=''; document.body.style.overflow=''; }
+  window.openDocViewer=openDocViewer; window.closeDocViewer=closeDocViewer;
 
   async function renderReview(){
     const el=id=>document.getElementById(id); if(!el('rv-readiness')) return;

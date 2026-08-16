@@ -2,8 +2,8 @@
 
 import { Router } from 'express';
 import multer from 'multer';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
+import { dirname, join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as store from '../data/store.js';
@@ -97,6 +97,27 @@ r.post('/', upload.array('files'), async (req, res) => {
 
   const { counts } = readKnowledge();
   res.json({ results, counts, readiness: computeReadiness() });
+});
+
+// טיפוסי MIME לתצוגה מוטמעת (PDF נפתח בדפדפן; השאר יורדים)
+const MIME = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  txt: 'text/plain; charset=utf-8', csv: 'text/csv; charset=utf-8',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+// GET /api/documents/:id/file — הגשת הקובץ המקורי (inline; PDF מוצג בדפדפן)
+r.get('/:id/file', (req, res) => {
+  const doc = store.find('documents', req.params.id);
+  if (!doc || !doc.path) return res.status(404).json({ error: 'קובץ לא נמצא' });
+  const safe = basename(doc.path); // basename בלבד → מניעת path traversal
+  const full = join(UPLOAD_DIR, safe);
+  if (!existsSync(full)) return res.status(404).json({ error: 'הקובץ אינו זמין עוד' });
+  const ext = extname(safe).slice(1).toLowerCase();
+  res.setHeader('Content-Type', MIME[ext] || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(doc.filename || safe)}`);
+  createReadStream(full).on('error', () => res.sendStatus(500)).pipe(res);
 });
 
 // GET /api/documents/readiness — כיסוי קטגוריות (מד מוכנוּת)
