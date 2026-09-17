@@ -77,3 +77,39 @@ export function enforceDraft(sections, mapping, { neutralize = true } = {}) {
   });
   return { sections: safe, violations, ok: violations.length === 0 };
 }
+
+// ============================ שכבת גמישות (תפירה) — F0 ============================
+// checkTailoring: אכיפת אפס-הזיות על תפירת נכס-למכרז. שני כללים דטרמיניסטיים:
+//   (1) emphasize חייב להיות תת-קבוצה של ממדי הנכס — אי-אפשר "להדגיש" ממד שלא קיים.
+//   (2) כל עובדה קשיחה ב-bridge/variants מעוגנת בטקסט המותר (שם הנכס + ממדיו + הדרישה) —
+//       כמו ב-enforceDraft. מסגור-מחדש מותר; המצאת כמות/תקן/שנה — נחסמת.
+// asset = { name, dimensions[] }. tailoring = { requirement, emphasize[], bridge, variants[] }.
+function assetAllowedText(asset, requirement) {
+  return norm([asset?.name || '', ...(asset?.dimensions || []), requirement || ''].join(' '));
+}
+export function checkTailoring(tailoring = {}, asset = {}) {
+  const violations = [];
+  const dims = new Set(asset.dimensions || []);
+  for (const d of (tailoring.emphasize || [])) {
+    if (!dims.has(d)) violations.push({ type: 'emphasize', value: d }); // הדגשת ממד שאינו של הנכס
+  }
+  const allowed = assetAllowedText(asset, tailoring.requirement);
+  const texts = [tailoring.bridge || '', ...((tailoring.variants) || [])];
+  for (const t of texts) {
+    for (const f of factsIn(t)) if (!allowed.includes(f)) violations.push({ type: 'fact', value: f }); // עובדה מומצאת
+  }
+  return { ok: violations.length === 0, violations };
+}
+
+// אכיפה + ניטרול: תפירה שנכשלת מנוטרלת ל"אין תפירה בטוחה" (fail-safe → gap), לא מוצגת.
+export function enforceTailoring(tailoring, asset, { neutralize = true } = {}) {
+  const res = checkTailoring(tailoring, asset);
+  if (res.ok) return { ...tailoring, ok: true };
+  if (!neutralize) return { ...tailoring, ok: false, violations: res.violations };
+  return {
+    ...tailoring,
+    hasSource: false, emphasize: [], bridge: '', variants: [],
+    stretch: null, evidence_tier: 'weak',
+    neutralized: true, ok: false, violations: res.violations,
+  };
+}

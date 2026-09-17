@@ -1,37 +1,71 @@
 // tenders.js — מכרזים: הזנה, פענוח, ניתוח, רשימה.
 
-import { Router } from 'express';
+import { AsyncRouter } from '../lib/http.js';
 import multer from 'multer';
-import * as store from '../data/store.js';
 import { engine } from '../engine/index.js';
 import { extractText } from '../lib/extractText.js';
+import { analyzeForm, buildSubmissionPacket } from '../packet/index.js';
+import { REASON_CODES, isValidReasonCode, snapshotPrediction, issuerInsight } from '../learning/index.js';
+import { tailorRequirements } from '../flex/tailor.js';
+
+// בונה את אובייקט הידע לצ׳קליסטים: אישורים, קטגוריות מסמכים, סיווג.
+function knowledgeFor(store) {
+  const company = store.company();
+  return {
+    certifications: store.all('certifications'),
+    documentCategories: [...new Set(store.all('documents').map((d) => d.category).filter(Boolean))],
+    classification: company.classification || null,
+  };
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-const r = Router();
+const r = AsyncRouter();
+
+// GET /api/tenders/reason-codes — קטגוריות סיבת-תוצאה (ל-dropdown בחזית). קבוע, לא מסונן-חשבון.
+r.get('/reason-codes', (req, res) => res.json(REASON_CODES));
 
 // GET /api/tenders — pipeline לדשבורד
-r.get('/', (req, res) => res.json(store.all('tenders')));
+r.get('/', (req, res) => res.json(req.store.all('tenders')));
+
+// DELETE /api/tenders — ניקוי כל המכרזים של החשבון (מכרזים, דרישות, טיוטות, תוצאות).
+// אינו נוגע במאגר הידע (פרויקטים, אישורים, מסמכי חברה) ולא בפרטי החברה.
+r.delete('/', (req, res) => {
+  const removed = {
+    tenders: req.store.clear('tenders'),
+    requirements: req.store.clear('requirements'),
+    drafts: req.store.clear('drafts'),
+    outcomes: req.store.clear('outcomes'),
+  };
+  res.json({ ok: true, removed });
+});
 
 // POST /api/tenders — הזנת מכרז (קובץ בשדה "file" או טקסט מודבק ב-body.text)
 r.post('/', upload.single('file'), async (req, res) => {
   let text = (req.body?.text || '').trim();
+  let ocrUsed = false, ocrConfidence = null;
 
   if (!text && req.file) {
     const original = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     const ext = await extractText(req.file.buffer, original);
     if (ext.error) return res.status(422).json({ error: ext.error });
     text = ext.rawText;
+    ocrUsed = !!ext.ocr; ocrConfidence = ext.ocrConfidence ?? null; // מכרז סרוק → OCR (P2)
   }
   if (!text) return res.status(400).json({ error: 'לא התקבל מכרז (קובץ או טקסט)' });
 
-  // פענוח + ניתוח
-  const parsed = await engine().parseTender(text);
-  const kb = store.knowledge();
-  const analysis = await engine().analyzeMatch(parsed.requirements, kb);
+  // פענוח + ניתוח + דגלים אדומים (הספירה נשמרת לתצוגת סיכון בכרטיס — S2.1)
+  const eng = engine();
+  const parsed = await eng.parseTender(text);
+  const kb = req.store.knowledge();
+  const [analysis, redFlags] = await Promise.all([
+    eng.analyzeMatch(parsed.requirements, kb),
+    eng.checkRedFlags(text),
+  ]);
+  const flags = redFlags.flags || [];
 
   // שמירת המכרז
-  const tender = store.insert('tenders', {
-    id: store.uid('t'),
+  const tender = req.store.insert('tenders', {
+    id: req.store.uid('t'),
     code: parsed.code || '#—',
     name: parsed.name || 'מכרז חדש',
     issuer: parsed.issuer || 'גורם מפרסם',
@@ -39,6 +73,11 @@ r.post('/', upload.single('file'), async (req, res) => {
     days: parsed.deadline ? daysUntil(parsed.deadline) : 14,
     progress: 0,
     match_score: analysis.matchScore,
+    // סיכון: ספירת דגלים (לכרטיס הדשבורד)
+    red_flags: flags.length,
+    red_flags_high: flags.filter((f) => f.severity === 'high').length,
+    // מקור: OCR (מכרז סרוק) — לשקיפות בחזית
+    ocr: ocrUsed, ocr_confidence: ocrConfidence,
     // סיכום מובנה (B11)
     deadline: parsed.deadline || null,
     guarantee: parsed.guarantee || null,
@@ -51,9 +90,9 @@ r.post('/', upload.single('file'), async (req, res) => {
 
   // שמירת הדרישות
   for (const req0 of parsed.requirements) {
-    store.insert('requirements', {
-      id: store.uid('req'), tender_id: tender.id,
-      text: req0.text, category: req0.category || 'דרישה', status: null,
+    req.store.insert('requirements', {
+      id: req.store.uid('req'), tender_id: tender.id,
+      text: req0.text, category: req0.category || 'כללי', mandatory: !!req0.mandatory, status: null,
     });
   }
 
@@ -62,24 +101,24 @@ r.post('/', upload.single('file'), async (req, res) => {
 
 // GET /api/tenders/:id — פרטי מכרז
 r.get('/:id', (req, res) => {
-  const t = store.find('tenders', req.params.id);
+  const t = req.store.find('tenders', req.params.id);
   if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
   res.json(t);
 });
 
 // GET /api/tenders/:id/analysis — ניתוח התאמה מול המאגר
 r.get('/:id/analysis', async (req, res) => {
-  const t = store.find('tenders', req.params.id);
+  const t = req.store.find('tenders', req.params.id);
   if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
-  const reqs = store.all('requirements').filter((x) => x.tender_id === t.id);
+  const reqs = req.store.all('requirements').filter((x) => x.tender_id === t.id);
   if (!reqs.length) {
     // מכרז seed בלי דרישות שמורות — ניתוח דמו קונסיסטנטי עם ה-match_score
     return res.json({ tender: t, matchScore: t.match_score, met: [], gaps: [], fails: [], thresholds: { checks: [] }, redFlags: { flags: [] }, demo: true });
   }
   const eng = engine();
   const [analysis, thresholds, redFlags] = await Promise.all([
-    eng.analyzeMatch(reqs, store.knowledge()),
-    eng.checkThresholds(t.raw_text || '', store.company()),
+    eng.analyzeMatch(reqs, req.store.knowledge()),
+    eng.checkThresholds(t.raw_text || '', req.store.company()),
     eng.checkRedFlags(t.raw_text || ''),
   ]);
   // העשרת כל פער במצב ההשלמה הידנית (manual_text) כדי שמסך הניתוח יוכל לטפל בו ולהציג "טופל"
@@ -88,15 +127,17 @@ r.get('/:id/analysis', async (req, res) => {
     ...g,
     manualText: (g.id && byId[g.id] && byId[g.id].manual_text) || null,
   }));
-  res.json({ tender: t, ...analysis, thresholds, redFlags });
+  // S4.2 — זיכרון-מפרסם: אם התמודדנו מול המפרסם הזה בעבר (מעל הסף), מצרפים תובנה לבאנר.
+  const issuer_insight = issuerInsight(t.issuer, req.store.all('tenders'), req.store.all('outcomes'));
+  res.json({ tender: t, ...analysis, thresholds, redFlags, issuer_insight });
 });
 
 // GET /api/tenders/:id/mapping — מיפוי דרישה→מקור, כולל השלמות ידניות
 r.get('/:id/mapping', async (req, res) => {
-  const t = store.find('tenders', req.params.id);
+  const t = req.store.find('tenders', req.params.id);
   if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
-  const reqs = store.all('requirements').filter((x) => x.tender_id === t.id);
-  const mapping = await buildMerged(reqs);
+  const reqs = req.store.all('requirements').filter((x) => x.tender_id === t.id);
+  const mapping = await buildMerged(req.store, reqs);
   const resolved = mapping.filter((m) => m.resolved).length;
   const coverage = mapping.length ? Math.round((resolved / mapping.length) * 100) : 0;
   res.json({ tender: t, mapping, coverage, resolved, total: mapping.length });
@@ -106,28 +147,39 @@ r.get('/:id/mapping', async (req, res) => {
 r.post('/:id/requirements/:rid/resolve', (req, res) => {
   const { manualText } = req.body || {};
   if (!manualText || !manualText.trim()) return res.status(400).json({ error: 'נדרש טקסט השלמה' });
-  const updated = store.update('requirements', req.params.rid, { manual_text: manualText.trim() });
+  const updated = req.store.update('requirements', req.params.rid, { manual_text: manualText.trim() });
   if (!updated) return res.status(404).json({ error: 'דרישה לא נמצאה' });
   res.json(updated);
 });
 
 // DELETE .../resolve — ביטול השלמה ידנית
 r.delete('/:id/requirements/:rid/resolve', (req, res) => {
-  const updated = store.update('requirements', req.params.rid, { manual_text: null });
+  const updated = req.store.update('requirements', req.params.rid, { manual_text: null });
   if (!updated) return res.status(404).json({ error: 'דרישה לא נמצאה' });
   res.json(updated);
 });
 
-// POST /api/tenders/:id/outcome — לולאת למידה (S10): תוצאה + הגשה בפועל → מזין את הזיכרון
+// POST /api/tenders/:id/outcome — לולאת למידה (S4): תוצאה מקודדת + הגשה בפועל → מזין את הזיכרון.
+//   לומד גם מזכייה וגם מכישלון: reason_code (רשימה סגורה) מאפשר התפלגות + זיכרון-מפרסם + כיול.
 r.post('/:id/outcome', upload.array('files'), async (req, res) => {
-  const t = store.find('tenders', req.params.id);
+  const t = req.store.find('tenders', req.params.id);
   if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
   const { result, reason } = req.body || {};
+  let { reason_code } = req.body || {};
   if (!['win', 'lose', 'pending'].includes(result)) {
     return res.status(400).json({ error: 'תוצאה לא חוקית (win/lose/pending)' });
   }
+  // כישלון מחייב קטגוריית-סיבה סגורה (זה מה שהופך את הלמידה למדידה).
+  if (result === 'lose') {
+    if (!reason_code || !isValidReasonCode(reason_code)) {
+      return res.status(400).json({ error: 'הפסד מחייב סיבה מקודדת (reason_code) מהרשימה', codes: REASON_CODES });
+    }
+  } else if (reason_code && !isValidReasonCode(reason_code)) {
+    reason_code = null; // זכייה/ממתין: אופציונלי, מתעלמים מקוד לא חוקי
+  }
 
-  // הגשה בפועל → נלמדת לתוך המאגר (כמו מסמך חברה)
+  // הגשה בפועל → נלמדת לתוך המאגר. מזכייה — מסומנת כ"ראיה מנצחת" (source).
+  const isWin = result === 'win';
   let learnedProjects = 0, learnedCerts = 0;
   for (const f of req.files || []) {
     const original = Buffer.from(f.originalname, 'latin1').toString('utf8');
@@ -135,29 +187,80 @@ r.post('/:id/outcome', upload.array('files'), async (req, res) => {
     if (error || !rawText) continue;
     const learned = await engine().extractKnowledge(rawText, { kind, filename: original });
     for (const p of learned.projects) {
-      store.insert('projects', { id: store.uid('p'), name: p.name, year: p.year || null, dimensions: p.dimensions || [], source_doc_id: null });
+      req.store.insert('projects', {
+        id: req.store.uid('p'), name: p.name, year: p.year || null, dimensions: p.dimensions || [],
+        source_doc_id: null,
+        // ראיה מנצחת: תיוג-מקור לשימוש בתפירה/טיוטה עתידית (אפס-הזיות — מעוגן בהגשה אמיתית)
+        source: isWin ? 'הגשה זוכה' : 'הגשה',
+        won_tender_id: isWin ? t.id : null,
+      });
       learnedProjects++;
     }
     for (const c of learned.certifications) {
-      if (!store.all('certifications').some((x) => x.name === c.name)) {
-        store.insert('certifications', { id: store.uid('cert'), name: c.name, valid_until: c.valid_until || null, status: c.status || 'זוהה' });
+      if (!req.store.all('certifications').some((x) => x.name === c.name)) {
+        req.store.insert('certifications', { id: req.store.uid('cert'), name: c.name, valid_until: c.valid_until || null, status: c.status || 'זוהה' });
         learnedCerts++;
       }
     }
   }
 
-  const outcome = store.insert('outcomes', {
-    id: store.uid('out'), tender_id: t.id, result, reason: reason || null,
+  const outcome = req.store.insert('outcomes', {
+    id: req.store.uid('out'), tender_id: t.id,
+    result, reason_code: reason_code || null, reason: reason || null,
+    prediction: snapshotPrediction(t), // נעילת הניבוי לכיול עתידי
     created_at: new Date().toISOString(),
   });
-  store.update('tenders', t.id, { stage: result === 'pending' ? 'הוגש' : 'נסגר', progress: 100 });
+  req.store.update('tenders', t.id, { stage: result === 'pending' ? 'הוגש' : 'נסגר', progress: 100 });
 
-  res.status(201).json({ outcome, learned: { projects: learnedProjects, certifications: learnedCerts } });
+  res.status(201).json({ outcome, learned: { projects: learnedProjects, certifications: learnedCerts, winningEvidence: isWin && learnedProjects > 0 } });
+});
+
+// GET /api/tenders/:id/tailoring — קומת הגמישות (F1): תפירת נכסים לדרישות המכרז.
+// לכל דרישה — הנכס הרלוונטי ביותר, מודגש ומותפר, עם מד-מתיחה. אפס-הזיות (enforceTailoring).
+r.get('/:id/tailoring', (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  const reqs = req.store.all('requirements').filter((x) => x.tender_id === t.id);
+  const tailorings = tailorRequirements(reqs, req.store.knowledge());
+  const tailored = tailorings.filter((x) => x.hasSource).length;
+  const adjacent = tailorings.filter((x) => x.hasSource && x.relevance === 'adjacent').length;
+  res.json({
+    tender: t, tailorings,
+    summary: { total: tailorings.length, tailored, adjacent, coverage: tailorings.length ? Math.round((tailored / tailorings.length) * 100) : 0 },
+  });
+});
+
+// POST /api/tenders/:id/form/analyze — תצוגה מקדימה: מה יתמלא בטופס רשמי (בלי להפיק PDF)
+r.post('/:id/form/analyze', upload.single('file'), async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  if (!req.file) return res.status(400).json({ error: 'לא התקבל קובץ טופס (PDF)' });
+  const out = await analyzeForm(req.file.buffer, req.store.company());
+  if (!out.acroForm) return res.json({ acroForm: false, message: 'הטופס אינו מכיל שדות למילוי (AcroForm). ניתן להפיק חבילה עם הטופס כנספח וצ׳קליסט ידני.', ...out });
+  res.json(out);
+});
+
+// POST /api/tenders/:id/packet — הפקת חבילת ההגשה המלאה (PDF אחד) מטופס רשמי שהועלה
+r.post('/:id/packet', upload.single('file'), async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  if (!req.file) return res.status(400).json({ error: 'לא התקבל קובץ טופס (PDF)' });
+  if (!/pdf$/i.test(req.file.originalname) && req.file.mimetype !== 'application/pdf') {
+    return res.status(415).json({ error: 'נדרש קובץ PDF (טופס רשמי עם שדות)' });
+  }
+  const { packetBytes, meta } = await buildSubmissionPacket(req.file.buffer, {
+    tender: t, company: req.store.company(), knowledge: knowledgeFor(req.store),
+  });
+  const fname = `packet-${(t.code || 'tender').replace(/[^\w\-]/g, '')}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+  res.setHeader('X-Packet-Meta', Buffer.from(JSON.stringify(meta.checklistSummary)).toString('base64'));
+  res.send(Buffer.from(packetBytes));
 });
 
 // מיפוי + מיזוג השלמות ידניות (משמש גם ביצירת הטיוטה). א-סינכרוני (מנוע claude).
-export async function buildMerged(reqs) {
-  const mapping = await engine().buildMapping(reqs, store.knowledge());
+export async function buildMerged(db, reqs) {
+  const mapping = await engine().buildMapping(reqs, db.knowledge());
   return mapping.map((m, i) => ({
     ...m,
     id: reqs[i].id,

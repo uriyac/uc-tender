@@ -1,12 +1,11 @@
 // documents.js — העלאת מסמכי חברה → חילוץ טקסט → למידת ידע → שמירה.
 
-import { Router } from 'express';
+import { AsyncRouter } from '../lib/http.js';
 import multer from 'multer';
 import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
 import { dirname, join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import * as store from '../data/store.js';
 import { engine } from '../engine/index.js';
 import { extractText } from '../lib/extractText.js';
 
@@ -16,7 +15,7 @@ mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-const r = Router();
+const r = AsyncRouter();
 
 // קטגוריות מסמכים — טקסונומיה יציבה לפי מה שהמנוע מחלץ ומכרזים דורשים
 export const DOC_CATEGORIES = [
@@ -28,8 +27,8 @@ export const DOC_CATEGORIES = [
 ];
 const CAT_KEYS = new Set(DOC_CATEGORIES.map((c) => c.key));
 
-function computeReadiness() {
-  const docs = store.all('documents');
+function computeReadiness(db) {
+  const docs = db.all('documents');
   const categories = DOC_CATEGORIES.map((c) => {
     const count = docs.filter((d) => d.category === c.key).length;
     return { key: c.key, label: c.label, count, covered: count > 0 };
@@ -60,8 +59,8 @@ r.post('/', upload.array('files'), async (req, res) => {
     const path = join(UPLOAD_DIR, safe);
     try { writeFileSync(path, f.buffer); } catch { /* אחסון בלבד */ }
 
-    const doc = store.insert('documents', {
-      id: store.uid('doc'), filename: original, path: safe, kind, category,
+    const doc = req.store.insert('documents', {
+      id: req.store.uid('doc'), filename: original, path: safe, kind, category,
       status: error ? 'error' : 'done', created_at: new Date().toISOString(),
     });
 
@@ -75,15 +74,15 @@ r.post('/', upload.array('files'), async (req, res) => {
 
     // שמירת פרויקטים + אישורים (מקושרים למסמך המקור)
     for (const p of learned.projects) {
-      store.insert('projects', {
-        id: store.uid('p'), name: p.name, year: p.year || null,
+      req.store.insert('projects', {
+        id: req.store.uid('p'), name: p.name, year: p.year || null,
         dimensions: p.dimensions || [], source_doc_id: doc.id,
       });
     }
     for (const c of learned.certifications) {
-      const exists = store.all('certifications').some((x) => x.name === c.name);
-      if (!exists) store.insert('certifications', {
-        id: store.uid('cert'), name: c.name, valid_until: c.valid_until || null,
+      const exists = req.store.all('certifications').some((x) => x.name === c.name);
+      if (!exists) req.store.insert('certifications', {
+        id: req.store.uid('cert'), name: c.name, valid_until: c.valid_until || null,
         status: c.status || 'זוהה', source_doc_id: doc.id,
       });
     }
@@ -95,8 +94,8 @@ r.post('/', upload.array('files'), async (req, res) => {
     });
   }
 
-  const { counts } = readKnowledge();
-  res.json({ results, counts, readiness: computeReadiness() });
+  const { counts } = readKnowledge(req.store);
+  res.json({ results, counts, readiness: computeReadiness(req.store) });
 });
 
 // טיפוסי MIME לתצוגה מוטמעת (PDF נפתח בדפדפן; השאר יורדים)
@@ -109,7 +108,7 @@ const MIME = {
 
 // GET /api/documents/:id/file — הגשת הקובץ המקורי (inline; PDF מוצג בדפדפן)
 r.get('/:id/file', (req, res) => {
-  const doc = store.find('documents', req.params.id);
+  const doc = req.store.find('documents', req.params.id);
   if (!doc || !doc.path) return res.status(404).json({ error: 'קובץ לא נמצא' });
   const safe = basename(doc.path); // basename בלבד → מניעת path traversal
   const full = join(UPLOAD_DIR, safe);
@@ -121,24 +120,24 @@ r.get('/:id/file', (req, res) => {
 });
 
 // GET /api/documents/readiness — כיסוי קטגוריות (מד מוכנוּת)
-r.get('/readiness', (req, res) => res.json(computeReadiness()));
+r.get('/readiness', (req, res) => res.json(computeReadiness(req.store)));
 
 // GET /api/documents/list — רשימת מסמכים שהועלו (למסך הסקירה)
 r.get('/list', (req, res) => {
-  res.json(store.all('documents').map((d) => ({ id: d.id, filename: d.filename, category: d.category, status: d.status })));
+  res.json(req.store.all('documents').map((d) => ({ id: d.id, filename: d.filename, category: d.category, status: d.status })));
 });
 
 // PUT /api/documents/:id/category — שינוי סיווג ידני
 r.put('/:id/category', (req, res) => {
   const { category } = req.body || {};
   if (!CAT_KEYS.has(category)) return res.status(400).json({ error: 'קטגוריה לא חוקית' });
-  const updated = store.update('documents', req.params.id, { category });
+  const updated = req.store.update('documents', req.params.id, { category });
   if (!updated) return res.status(404).json({ error: 'מסמך לא נמצא' });
-  res.json({ ok: true, readiness: computeReadiness() });
+  res.json({ ok: true, readiness: computeReadiness(req.store) });
 });
 
-function readKnowledge() {
-  const { projects, certifications } = store.knowledge();
+function readKnowledge(db) {
+  const { projects, certifications } = db.knowledge();
   const dimensions = projects.reduce((n, p) => n + (p.dimensions?.length || 0), 0);
   return { counts: { projects: projects.length, certifications: certifications.length, dimensions } };
 }

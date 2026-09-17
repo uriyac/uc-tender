@@ -2,13 +2,64 @@
 // כל פונקציה מחזירה נתונים אמיתיים-בצורתם. בשלבים 1-3 ההיוריסטיקות כאן יתעמקו.
 // ה-Guardrail (אפס-הזיות) נאכף כאן במבנה, כדי ש-Claude יירש אותו בשלב 5.
 
-// --- כלי עזר קטן: חפיפת מילות-מפתח ---
+// --- חפיפת מילות-מפתח עם נרמול עברי (בלי מפתח, דטרמיניסטי) ---
+// נרמול: הסרת ניקוד/גרשיים, סופיות→רגילות, והסרת עד 2 תחיליות (ב/ל/ו/ה/מ/ש/כ).
+// מילון נרדפות לתחום: מקבץ מונחים שקולים (ביוב↔שפכים, בקרה↔ניטור↔SCADA).
+// מילות-סתם (boilerplate) מסוננות כדי למנוע התאמות-שווא.
+const FINALS = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
+const PREFIX = 'בלוהמשכ';
+const STOP = new Set([
+  'של', 'על', 'את', 'עם', 'או', 'גם', 'כל', 'לכל', 'לפי', 'אשר', 'זה', 'הוא', 'אינו',
+  'ללא', 'בין', 'מול', 'מעל', 'יש', 'אין', 'כולל', 'לפחות', 'נדרש', 'נדרשת', 'נדרשימ',
+  'חובה', 'המציע', 'בעל', 'הצעה', 'מכרז', 'שנות', 'שנימ', 'שנה', 'ניסיונ', 'מוכח',
+]);
+const SYN_GROUPS = [
+  ['מים', 'מימי', 'שתיה', 'הידראולי'],
+  ['ביוב', 'שפכים', 'ניקוז', 'שופכין', 'קולחין'],
+  ['תשתית', 'תשתיות', 'צנרת', 'קו', 'קווי', 'קווים'],
+  ['בקרה', 'ניטור', 'סקאדה', 'scada', 'בקר', 'טלמטריה'],
+  ['מוקד', 'מוקדי', 'קריאות'],
+  ['הנדסי', 'הנדסה', 'מהנדס', 'מהנדסת', 'הנדסית'],
+  ['פיקוח', 'פיקוחי', 'מפקח'],
+  ['נתונים', 'מידע', 'דאטה'],
+  ['רשות', 'רשויות', 'עיריה', 'עיריית', 'עיריות', 'מועצה', 'ציבורי', 'ציבוריים', 'ממשלתי', 'עירוני', 'מקומית', 'מקומיות'],
+];
+const SYN = new Map(); // מאוכלס אחרי canon (מפתחות מנורמלים)
+
+function canon(w) {
+  let s = w.toLowerCase()
+    .replace(/[֑-ׇ]/g, '')      // ניקוד/טעמים
+    .replace(/["'׳״.,:;()\/\\]/g, '')     // פיסוק/גרשיים
+    .replace(/[ךםןףץ]/g, (c) => FINALS[c]); // סופיות→רגילות
+  return s; // נרמול טהור בלבד — נרדפות/תחיליות מטופלות ב-overlap
+}
 function tokens(s) {
-  return (s || '').toLowerCase().replace(/["'.,:;()]/g, ' ').split(/\s+/).filter(Boolean);
+  return (s || '').split(/[\s ]+/).map(canon).filter((t) => t.length >= 2 && !STOP.has(t));
+}
+for (const g of SYN_GROUPS) { const c = canon(g[0]); for (const w of g) SYN.set(canon(w), c); }
+// מילה מנורמלת → קנוני (נרדפות) + צורת-סמיכות שמרנית ("בקרת"→"בקר" רק אם מקוצר=נרדף).
+const cn = (w) => {
+  if (SYN.has(w)) return SYN.get(w);
+  if (w.length >= 4 && w.endsWith('ת') && SYN.has(w.slice(0, -1))) return SYN.get(w.slice(0, -1));
+  return w;
+};
+// שוויון-לאחר-הסרת-תחילית בטוחה: "במים"↔"מים" מול טוקן אמיתי, בלי לשבש שורשים
+function prefEq(a, b) {
+  if (a.length >= 4 && PREFIX.includes(a[0]) && a.slice(1) === b) return true;
+  if (b.length >= 4 && PREFIX.includes(b[0]) && b.slice(1) === a) return true;
+  return false;
 }
 function overlap(a, b) {
-  const B = new Set(tokens(b));
-  return tokens(a).filter((t) => B.has(t)).length;
+  const bt = tokens(b), bCanon = new Set(bt.map(cn));
+  const seen = new Set();
+  let n = 0;
+  for (const wa of tokens(a)) {
+    const ca = cn(wa);
+    let hit = bCanon.has(ca);
+    if (!hit) for (const wb of bt) if (prefEq(wa, wb)) { hit = true; break; }
+    if (hit && !seen.has(ca)) { seen.add(ca); n++; }
+  }
+  return n; // מספר מושגים ייחודיים משותפים
 }
 
 // 1) פענוח מסמך → טקסט. (שלב 1 יחליף בקריאה אמיתית ל-pdf/docx/xlsx)
@@ -76,6 +127,28 @@ export function extractKnowledge(rawText, meta = {}) {
 // 3) פענוח מכרז → מטא + דרישות. (שלב 2: פיצול היוריסטי; Claude יעמיק בשלב 5)
 const REQ_CUES = ['נדרש', 'ניסיון', 'חובה', 'על המציע', 'יש ל', 'בעל', 'הוכחת', 'תנאי סף'];
 
+// S1.2: קטגוריזציה גנרית (רב-תחומית) — לפי מילות-מפתח. ברירת מחדל: 'כללי'.
+const CAT_RULES = [
+  [/ניסיון|ותק|שנות|ביצע|מבצע|פרויקטים דומים/, 'ניסיון'],
+  [/מחזור|כספי|מאזן|רווח|איתנות פיננסית|דו"?ח כספי|היקף כספי/, 'פיננסי'],
+  [/סיווג קבלני|רישיון|רישום|היתר|קבלן רשום|ג\.?א\.?ט/, 'סיווג ורישוי'],
+  [/ערבות|ביטוח|בטוחה|כתב שיפוי/, 'ערבות וביטוח'],
+  [/צוות|כוח אדם|מהנדס|עובד|מוסמך|בעל תואר|כשירות|צמ"?ה|מנהל פרויקט/, 'כשירות צוות'],
+  [/תקן|ISO|איכות|בטיחות|הסמכה|תו תקן/, 'איכות ותקינה'],
+];
+function categorize(text) {
+  const t = text || '';
+  for (const [re, cat] of CAT_RULES) if (re.test(t)) return cat;
+  return 'כללי';
+}
+// "תנאי סף" = דרישת חובה (פסילה אם לא מתקיימת), להבדיל מדרישה מנקדת/רשות.
+function isMandatory(text) {
+  return /תנאי סף|חובה|הכרחי|מחייב|תנאי מוקדם|יש לעמוד|לא יתקבל|ייפסל/.test(text || '');
+}
+function enrichReq(text) {
+  return { text, category: categorize(text), mandatory: isMandatory(text) };
+}
+
 // ניקוי סימוני Markdown (מ-anydoc): כותרות #, הדגשה **, רשימות, <u>.
 function stripMd(l) {
   return (l || '')
@@ -101,7 +174,7 @@ function markdownTableRows(text) {
 // דרישה משורת-טבלה: העמודה הראשונה עם טקסט אמיתי (>=3 אותיות). שאר העמודות (משקל/חובה) הן מטא ולא נשמרות בחוזה כרגע.
 function rowToRequirement(cols) {
   const textCol = cols.find((c) => c.replace(/[^א-תA-Za-z]/g, '').length >= 3);
-  return textCol ? { text: textCol, category: 'דרישה' } : null;
+  return textCol ? enrichReq(textCol) : null;
 }
 
 export function parseTender(rawText) {
@@ -123,11 +196,13 @@ export function parseTender(rawText) {
   // דרישות: קודם מטבלאות Markdown (DOCX/XLSX), ואז שורות-רמז (PDF / fallback)
   const tableReqs = markdownTableRows(text).map(rowToRequirement).filter(Boolean);
   const isMeta = (l) => stripMd(l) === nameLine || (issuer && l.includes(issuer)) || stripMd(l).length < 8;
+  // פריט-רשימה ממוספר/בוליט (1. / 2) / - / •) הוא כמעט תמיד דרישה — גם בלי מילת-רמז.
+  const isEnumerated = (l) => /^\s*(\d+[.)]|[-–—•*])\s+\S/.test(l);
   let lineReqs = lines
-    .filter((l) => !l.startsWith('|') && !isMeta(l) && REQ_CUES.some((c) => l.includes(c)))
-    .map((l) => ({ text: stripMd(l), category: 'דרישה' }));
+    .filter((l) => !l.startsWith('|') && !isMeta(l) && (isEnumerated(l) || REQ_CUES.some((c) => l.includes(c))))
+    .map((l) => enrichReq(stripMd(l)));
   if (!tableReqs.length && !lineReqs.length) {
-    lineReqs = lines.filter((l) => !l.startsWith('|') && !isMeta(l)).map((l) => ({ text: stripMd(l), category: 'דרישה' }));
+    lineReqs = lines.filter((l) => !l.startsWith('|') && !isMeta(l)).map((l) => enrichReq(stripMd(l)));
   }
   const seen = new Set(tableReqs.map((r) => r.text));
   const requirements = [...tableReqs, ...lineReqs.filter((r) => !seen.has(r.text))].slice(0, 12);
@@ -148,31 +223,48 @@ export function parseTender(rawText) {
     min_turnover: turn ? turn[0].replace(/\s+/g, ' ').trim() : null,
     duration: durM ? durM[0].trim() : null,
     requirements: requirements.length ? requirements
-      : [{ text: 'לא זוהו דרישות מובנות — יש לבדוק את הטקסט', category: 'כללי' }],
+      : [{ text: 'לא זוהו דרישות מובנות — יש לבדוק את הטקסט', category: 'כללי', mandatory: false }],
   };
 }
 
 // 3c) דגלים אדומים: מלכודות שמנהל מכרזים חייב לראות (פסילה, קנסות, מפגש חובה).
 //     stub: זיהוי דפוסים. Claude ישדרג בשלב 5. הכל מעוגן בטקסט — אין המצאה.
+//     כל דגל נושא: severity (דירוג קריטיות) + detail (מה זה) + action (מה לעשות — S1.1).
 export function checkRedFlags(rawText) {
   const text = rawText || '';
   const flags = [];
   if (/הנחה/.test(text) && /תיפסל|תיפסלנה|פסיל|תידחה/.test(text)) {
     const m = text.match(/(\d+)\s*%/);
     flags.push({ label: 'סף הנחה לפסילה', severity: 'high',
-      detail: m ? `הצעה עם הנחה מעל ${m[1]}% עלולה להיפסל — בדוק את המחירון.` : 'הנחה מעל שיעור מסוים תיפסל.' });
+      detail: m ? `הצעה עם הנחה מעל ${m[1]}% עלולה להיפסל.` : 'הנחה מעל שיעור מסוים תיפסל.',
+      action: 'חשב את מחיר ההצעה מול המחירון — אל תעבור את סף ההנחה שמוביל לפסילה.' });
   }
   if (/פיצוי(ים)?\s*מוסכם|פיצויים מוסכמים|סעיף קנס|קנסות|קנס יומי/.test(text)) {
     flags.push({ label: 'סעיפי קנס / פיצוי מוסכם', severity: 'medium',
-      detail: 'קיימים סעיפי קנס — בדוק חשיפה כספית לפני הגשה.' });
+      detail: 'קיימים סעיפי קנס / פיצוי מוסכם בחוזה.',
+      action: 'כמת את החשיפה הכספית המקסימלית (קנס יומי × ימי איחור אפשריים) לפני הגשה.' });
   }
   if (/(מפגש מציעים|סיור קבלנים|סיור מציעים)[^\n]{0,20}(חובה|הכרחי|מחייב)/.test(text)) {
     flags.push({ label: 'מפגש/סיור חובה', severity: 'high',
-      detail: 'השתתפות במפגש/סיור היא תנאי להגשה — אל תפספס את המועד.' });
+      detail: 'השתתפות במפגש/סיור היא תנאי מוקדם להגשה.',
+      action: 'רשום מיד את מועד המפגש ביומן — היעדרות פוסלת את ההצעה.' });
   }
   if (/ניסיון קודם עם המזמין|היכרות עם המערכת הקיימת|ספק קיים בלבד/.test(text)) {
     flags.push({ label: 'תנאי מגביל תחרות', severity: 'medium',
-      detail: 'ייתכן תנאי שמעדיף ספק מכהן — בדוק היתכנות.' });
+      detail: 'ייתכן תנאי שמעדיף ספק מכהן / דורש היכרות מוקדמת.',
+      action: 'בדוק היתכנות; שקול הגשת שאלת הבהרה לגבי סבירות התנאי.' });
+  }
+  const guarM = text.match(/ערבות\s*(ביצוע|הגשה|מכרז|בנקאית)/);
+  if (guarM) {
+    const amt = text.match(new RegExp('ערבות[^\\n]{0,40}?([\\d,]+)\\s*(מיליון|אלף)?\\s*(₪|ש"?ח|שקל)'));
+    flags.push({ label: `ערבות ${guarM[1]}`, severity: 'medium',
+      detail: amt ? `נדרשת ערבות בסך ${amt[0].replace(/\s+/g, ' ').trim()}.` : 'נדרשת ערבות — בדוק סכום ותוקף.',
+      action: 'ודא מסגרת בנקאית פנויה לערבות ובדוק את תאריך התוקף הנדרש.' });
+  }
+  if (/ביטוח[^\n]{0,40}(אחריות מקצועית|צד ג['׳]?|חבות המוצר)/.test(text)) {
+    flags.push({ label: 'דרישת ביטוח', severity: 'low',
+      detail: 'נדרש ביטוח בהיקף מוגדר (אחריות מקצועית / צד ג׳).',
+      action: 'ודא מול סוכן הביטוח שהפוליסות הקיימות מכסות את הגבולות הנדרשים.' });
   }
   return { flags };
 }
@@ -203,6 +295,13 @@ export function checkThresholds(rawText, company = {}) {
   if (/מחזור\s*(כספי|שנתי)?/.test(text)) {
     checks.push({ label: 'מחזור כספי', required: 'נדרש', have: company.avg_turnover || 'לא הוזן',
       status: company.avg_turnover ? 'met' : 'unknown' });
+  }
+  const clsM = text.match(/סיווג קבלני\s*([א-ת])?-?(\d)?/);
+  if (clsM) {
+    const req = clsM[0].trim();
+    const have = company.classification;
+    checks.push({ label: `סיווג קבלני: ${req.replace(/^סיווג קבלני\s*/, '') || 'נדרש'}`,
+      required: req, have: have || 'לא הוזן', status: have ? 'met' : 'unknown' });
   }
   return { checks };
 }

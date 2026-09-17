@@ -67,7 +67,14 @@ async function extractLegacy(buffer, filename, kind) {
       // הסר מפרידי-עמוד של pdf-parse ("-- 1 of 51 --") — PDF סרוק מחזיר רק אותם, בלי תוכן
       const meaningful = t.replace(/--\s*\d+\s+of\s+\d+\s*--/g, '').replace(/\s+/g, ' ').trim();
       if (meaningful.length >= 20) return { kind, rawText: t };
-      return { kind, rawText: '', error: 'לא הופק טקסט מה-PDF (ככל הנראה סרוק/תמונה). נדרש OCR.' };
+      // PDF סרוק (בלי שכבת טקסט) → מסלול OCR אופליין (P2). יבוא דינמי כדי לא לטעון את
+      // החבילות הכבדות (tesseract/pdfjs/canvas) עד שבאמת נדרש, וכדי להישבר בחן אם חסרות.
+      const { ocrPdf } = await import('./ocr.js');
+      const ocr = await ocrPdf(buffer);
+      if (ocr.text && ocr.text.replace(/\s+/g, '').length >= 20) {
+        return { kind, rawText: ocr.text, ocr: true, ocrConfidence: ocr.confidence };
+      }
+      return { kind, rawText: '', error: 'לא הופק טקסט מה-PDF (ככל הנראה סרוק/תמונה). ' + (ocr.error ? 'OCR נכשל: ' + ocr.error : 'נדרש OCR.') };
     }
     if (kind === 'docx') {
       const res = await mammoth.extractRawText({ buffer });

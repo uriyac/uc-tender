@@ -1,15 +1,15 @@
 // knowledge.js — מאגר הידע: פרויקטים, אישורים, ממדים.
 // שלב 0: קריאה. שלב 1: יתווספו העלאה, חילוץ ועריכה שנשמרים.
 
-import { Router } from 'express';
-import * as store from '../data/store.js';
+import { AsyncRouter } from '../lib/http.js';
 
-const r = Router();
+const r = AsyncRouter();
+// req.store — accessor מסונן לחשבון (נקבע ב-requireAuth). הבידוד המבני.
 
 // GET /api/knowledge — מאגר הידע + מונים + מקור מסמך לכל פריט
 r.get('/', (req, res) => {
-  const { projects, certifications } = store.knowledge();
-  const docs = store.all('documents');
+  const { projects, certifications } = req.store.knowledge();
+  const docs = req.store.all('documents');
   const sourceOf = (id) => (docs.find((d) => d.id === id) || {}).filename || null;
   const withSource = (x) => ({ ...x, source: sourceOf(x.source_doc_id) });
   const dimensions = projects.reduce((n, p) => n + (p.dimensions?.length || 0), 0);
@@ -20,13 +20,13 @@ r.get('/', (req, res) => {
       projects: projects.length,
       certifications: certifications.length,
       dimensions,
-      tendersLearned: store.all('outcomes').length,
+      tendersLearned: req.store.all('outcomes').length,
     },
   });
 });
 
 // GET /api/knowledge/company — פרטי הארגון
-r.get('/company', (req, res) => res.json(store.company()));
+r.get('/company', (req, res) => res.json(req.store.company()));
 
 // PUT /api/knowledge/company — עדכון זהות/פרופיל החברה (אונבורדינג + הגדרות)
 const COMPANY_STR = [
@@ -42,7 +42,7 @@ r.put('/company', (req, res) => {
   if (Array.isArray(b.specialties)) patch.specialties = b.specialties.filter(Boolean);
   if (Array.isArray(b.regions)) patch.regions = b.regions.filter(Boolean);
   if (typeof b.onboarded === 'boolean') patch.onboarded = b.onboarded;
-  res.json(store.updateCompany(patch));
+  res.json(req.store.updateCompany(patch));
 });
 
 // --- עריכת מאגר הידע (נשמר) ---
@@ -51,8 +51,8 @@ r.put('/company', (req, res) => {
 r.post('/projects', (req, res) => {
   const { name, year, dimensions } = req.body || {};
   if (!name) return res.status(400).json({ error: 'נדרש שם פרויקט' });
-  const p = store.insert('projects', {
-    id: store.uid('p'), name, year: year || null,
+  const p = req.store.insert('projects', {
+    id: req.store.uid('p'), name, year: year || null,
     dimensions: Array.isArray(dimensions) ? dimensions : [], source_doc_id: null,
   });
   res.status(201).json(p);
@@ -62,14 +62,14 @@ r.post('/projects', (req, res) => {
 r.put('/projects/:id', (req, res) => {
   const patch = {};
   for (const k of ['name', 'year', 'dimensions']) if (k in (req.body || {})) patch[k] = req.body[k];
-  const updated = store.update('projects', req.params.id, patch);
+  const updated = req.store.update('projects', req.params.id, patch);
   if (!updated) return res.status(404).json({ error: 'פרויקט לא נמצא' });
   res.json(updated);
 });
 
 // DELETE /api/knowledge/projects/:id
 r.delete('/projects/:id', (req, res) => {
-  store.remove('projects', req.params.id);
+  req.store.remove('projects', req.params.id);
   res.json({ ok: true });
 });
 
@@ -77,19 +77,19 @@ r.delete('/projects/:id', (req, res) => {
 r.post('/certifications', (req, res) => {
   const { name, valid_until, status } = req.body || {};
   if (!name) return res.status(400).json({ error: 'נדרש שם אישור' });
-  res.status(201).json(store.insert('certifications', {
-    id: store.uid('cert'), name, valid_until: valid_until || null, status: status || 'הוזן ידנית', source_doc_id: null,
+  res.status(201).json(req.store.insert('certifications', {
+    id: req.store.uid('cert'), name, valid_until: valid_until || null, status: status || 'הוזן ידנית', source_doc_id: null,
   }));
 });
 r.put('/certifications/:id', (req, res) => {
   const patch = {};
   for (const k of ['name', 'valid_until', 'status']) if (k in (req.body || {})) patch[k] = req.body[k];
-  const updated = store.update('certifications', req.params.id, patch);
+  const updated = req.store.update('certifications', req.params.id, patch);
   if (!updated) return res.status(404).json({ error: 'אישור לא נמצא' });
   res.json(updated);
 });
 r.delete('/certifications/:id', (req, res) => {
-  store.remove('certifications', req.params.id);
+  req.store.remove('certifications', req.params.id);
   res.json({ ok: true });
 });
 

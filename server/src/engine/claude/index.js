@@ -91,7 +91,8 @@ export async function parseTender(rawText) {
       'הישאר נאמן לטקסט — אל תמציא דרישות. החזר JSON בלבד.',
     instruction: 'חלץ: קוד מכרז, שם, גורם מפרסם, מועד הגשה, ערבות (סכום), סיווג קבלני נדרש, ' +
       'מחזור מינימלי נדרש, משך ההתקשרות — כל אלה אם מצוינים (אחרת null). וגם רשימת דרישות/תנאי-סף. ' +
-      'לכל דרישה: הטקסט שלה וקטגוריה קצרה (למשל: ניסיון, פיננסי, סיווג, כשירות צוות).',
+      'לכל דרישה: הטקסט שלה, קטגוריה קצרה (ניסיון / פיננסי / סיווג ורישוי / ערבות וביטוח / כשירות צוות / איכות ותקינה / כללי), ' +
+      'ו-mandatory (true אם זו דרישת חובה/תנאי-סף שפוסלת הצעה שאינה עומדת בה, אחרת false).',
     dataLabel: 'מסמך המכרז',
     data: rawText,
     effort: 'medium',
@@ -109,8 +110,8 @@ export async function parseTender(rawText) {
         requirements: {
           type: 'array', items: {
             type: 'object', additionalProperties: false,
-            properties: { text: { type: 'string' }, category: { type: 'string' } },
-            required: ['text', 'category'],
+            properties: { text: { type: 'string' }, category: { type: 'string' }, mandatory: { type: 'boolean' } },
+            required: ['text', 'category', 'mandatory'],
           },
         },
       },
@@ -137,7 +138,8 @@ export async function checkThresholds(rawText, company = {}) {
   const out = await extract({
     system: 'אתה מחלץ תנאי-סף כמותיים ממכרז ציבורי. חלץ אך ורק מה שמופיע בטקסט. החזר JSON בלבד.',
     instruction: 'חלץ תנאי-סף: שנות ניסיון נדרשות (מספר או null), האם נדרש ניסיון עם גופים ציבוריים ' +
-      '(true/false), מספר עובדים מוסמכים נדרש (מספר או null), האם נדרש מחזור כספי מינימלי (true/false).',
+      '(true/false), מספר עובדים מוסמכים נדרש (מספר או null), האם נדרש מחזור כספי מינימלי (true/false), ' +
+      'סיווג קבלני נדרש (הטקסט המדויק, למשל "ג-3", או null).',
     dataLabel: 'מסמך המכרז',
     data: rawText,
     effort: 'low',
@@ -148,8 +150,9 @@ export async function checkThresholds(rawText, company = {}) {
         public_sector_required: { type: 'boolean' },
         certified_staff_required: { type: ['integer', 'null'] },
         turnover_required: { type: 'boolean' },
+        classification_required: { type: ['string', 'null'] },
       },
-      required: ['years_required', 'public_sector_required', 'certified_staff_required', 'turnover_required'],
+      required: ['years_required', 'public_sector_required', 'certified_staff_required', 'turnover_required', 'classification_required'],
     },
   });
   const num = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
@@ -173,6 +176,11 @@ export async function checkThresholds(rawText, company = {}) {
     checks.push({ label: 'מחזור כספי מינימלי', required: 'נדרש', have: company.avg_turnover || 'לא הוזן',
       status: company.avg_turnover ? 'met' : 'unknown' });
   }
+  if (out.classification_required) {
+    const have = company.classification;
+    checks.push({ label: `סיווג קבלני: ${out.classification_required}`, required: out.classification_required,
+      have: have || 'לא הוזן', status: have ? 'met' : 'unknown' });
+  }
   return { checks };
 }
 
@@ -180,8 +188,9 @@ export async function checkThresholds(rawText, company = {}) {
 export async function checkRedFlags(rawText) {
   const out = await extract({
     system: 'אתה מזהה "דגלים אדומים" במכרז — מלכודות שעלולות לפסול הצעה או לחשוף לסיכון: ' +
-      'תנאי פסילה (למשל הנחה מעל שיעור), סעיפי קנס/פיצוי מוסכם, מפגש/סיור חובה, תנאים מגבילי-תחרות. ' +
-      'רק מה שמופיע בטקסט — אל תמציא. החזר JSON בלבד.',
+      'תנאי פסילה (למשל הנחה מעל שיעור), סעיפי קנס/פיצוי מוסכם, מפגש/סיור חובה, ' +
+      'דרישות ערבות/ביטוח, תנאים מגבילי-תחרות. רק מה שמופיע בטקסט — אל תמציא. ' +
+      'לכל דגל: severity (דירוג קריטיות), detail (מה הסיכון), action (המלצת פעולה קונקרטית למגיש). החזר JSON בלבד.',
     dataLabel: 'מסמך המכרז',
     data: rawText,
     effort: 'medium',
@@ -194,9 +203,10 @@ export async function checkRedFlags(rawText) {
             properties: {
               label: { type: 'string' },
               detail: { type: 'string' },
+              action: { type: 'string' },
               severity: { type: 'string', enum: ['high', 'medium', 'low'] },
             },
-            required: ['label', 'detail', 'severity'],
+            required: ['label', 'detail', 'action', 'severity'],
           },
         },
       },

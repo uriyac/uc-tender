@@ -1,16 +1,15 @@
 // dashboard.js — אגרגציות ללוח הבקרה הניהולי. הכל מחושב מהנתונים; אפס דמו.
 
-import { Router } from 'express';
-import * as store from '../data/store.js';
+import { AsyncRouter } from '../lib/http.js';
 
-const r = Router();
+const r = AsyncRouter();
 const STAGES = ['התאמה', 'טיוטה', 'אישור', 'הגשה'];
 const stageBucket = (s) => (s === 'הוגש' ? 'הגשה' : s);
 
 r.get('/', (req, res) => {
-  const all = store.all('tenders');
+  const all = req.store.all('tenders');
   const live = all.filter((t) => t.stage !== 'נסגר');
-  const outcomes = store.all('outcomes');
+  const outcomes = req.store.all('outcomes');
 
   const win = outcomes.filter((o) => o.result === 'win').length;
   const lose = outcomes.filter((o) => o.result === 'lose').length;
@@ -44,7 +43,8 @@ r.get('/', (req, res) => {
   const tenders = live
     .slice()
     .sort((a, b) => (a.days ?? 999) - (b.days ?? 999))
-    .map((t) => ({ id: t.id, code: t.code, name: t.name, issuer: t.issuer, days: t.days, match_score: t.match_score, stage: t.stage }));
+    .map((t) => ({ id: t.id, code: t.code, name: t.name, issuer: t.issuer, days: t.days, match_score: t.match_score, stage: t.stage,
+      progress: t.progress || 0, red_flags: t.red_flags || 0, red_flags_high: t.red_flags_high || 0 }));
 
   res.json({
     kpis: { active: live.length, winRate, pendingApproval, urgent },
