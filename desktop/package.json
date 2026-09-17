@@ -1,0 +1,33 @@
+{
+  "name": "uc-tender-desktop",
+  "productName": "UC TENDER",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UC TENDER — אפליקציית דסקטופ on-prem (מערכת מכרזים חכמה)",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "//": "DB = node-sqlite3-wasm (WASM, בלי native). אין electron-rebuild. ראה README.",
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.uctender.app",
+    "productName": "UC TENDER",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "extraResources": [
+      { "from": "../server", "to": "server", "filter": ["**/*", "!**/app.sqlite*", "!**/backups/**", "!**/tools/out/**"] },
+      { "from": "../prototype", "to": "prototype" }
+    ],
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"] },
+    "linux": { "target": ["AppImage"] }
+  }
+}
