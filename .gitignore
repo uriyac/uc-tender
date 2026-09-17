@@ -7,10 +7,15 @@ node_modules/
 **/.env
 !.env.example
 
-# --- נתוני ריצה (נוצרים מ-schema.js seed) ---
+# --- נתוני ריצה (נוצרים מ-schema.js seed / store.js) ---
 server/src/data/db.json
+server/src/data/app.sqlite
+server/src/data/app.sqlite-shm
+server/src/data/app.sqlite-wal
 server/uploads/
 uploads/
+server/tools/out/
+server/src/data/backups/
 
 # --- לוגים וזמניים ---
 *.log
