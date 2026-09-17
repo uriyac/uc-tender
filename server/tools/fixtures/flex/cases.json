@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ישיר — בקרה",
+    "knowledge": { "projects": [{ "name": "שדרוג מערכת מים כפר סבא", "dimensions": ["4 מחוזות", "בקרת SCADA", "מוקד שירות 24/7"] }], "certifications": [] },
+    "requirement": "ניסיון מוכח בבקרת SCADA",
+    "expected": { "relevance": "direct" }
+  },
+  {
+    "name": "ישיר — מוקד שירות",
+    "knowledge": { "projects": [{ "name": "שדרוג מערכת מים כפר סבא", "dimensions": ["4 מחוזות", "בקרת SCADA", "מוקד שירות 24/7"] }], "certifications": [] },
+    "requirement": "הפעלת מוקד שירות טלפוני",
+    "expected": { "relevance": "direct" }
+  },
+  {
+    "name": "פער קריטי — מחוץ לתחום (כור גרעיני)",
+    "knowledge": { "projects": [{ "name": "שדרוג מערכת מים כפר סבא", "dimensions": ["4 מחוזות", "בקרת SCADA", "מוקד שירות 24/7"] }], "certifications": [] },
+    "requirement": "תכנון והקמת כור גרעיני",
+    "expected": { "relevance": "gap" }
+  },
+  {
+    "name": "פער קריטי — מחוץ לתחום (ציוד רפואי)",
+    "knowledge": { "projects": [{ "name": "שדרוג מערכת מים כפר סבא", "dimensions": ["בקרת SCADA", "מוקד שירות"] }], "certifications": [] },
+    "requirement": "אספקת ציוד רפואי ומכשור לחדרי ניתוח",
+    "expected": { "relevance": "gap" }
+  },
+  {
+    "name": "סמוך — נרדף בלבד (מידע↔נתונים)",
+    "knowledge": { "projects": [{ "name": "מערכת עיבוד נתונים ארצית", "dimensions": ["עיבוד נתונים", "אינטגרציה"] }], "certifications": [] },
+    "requirement": "ניהול מידע ארגוני",
+    "expected": { "relevance": "adjacent" }
+  }
+]

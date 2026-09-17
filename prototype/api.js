@@ -26,6 +26,15 @@ const API = {
   },
 
   health() { return this._get('/api/health', { ok: false, engine: 'offline' }); },
+
+  // --- אימות ---
+  async authMe() {
+    try { const r = await fetch(this.base + '/api/auth/me', { headers: { Accept: 'application/json' } }); return r.ok ? (await r.json()).user : null; }
+    catch { return null; }
+  },
+  login(email, password) { return this._send('POST', '/api/auth/login', { email, password }); },
+  register(payload) { return this._send('POST', '/api/auth/register', payload); },
+  logout() { return this._send('POST', '/api/auth/logout'); },
   dashboard(fallback) { return this._get('/api/dashboard', fallback); },
   tenders(fallback) { return this._get('/api/tenders', fallback); },
   tender(id, fallback) { return this._get('/api/tenders/' + id, fallback); },
@@ -71,7 +80,11 @@ const API = {
     return res.json();
   },
 
+  // ניקוי כל המכרזים של החשבון (משאיר את מאגר הידע ופרטי החברה). מחזיר { ok, removed }
+  clearTenders() { return this._send('DELETE', '/api/tenders'); },
+
   tenderAnalysis(id, fallback) { return this._get('/api/tenders/' + id + '/analysis', fallback); },
+  tenderTailoring(id, fallback) { return this._get('/api/tenders/' + id + '/tailoring', fallback); },
   tenderMapping(id, fallback) { return this._get('/api/tenders/' + id + '/mapping', fallback); },
 
   // השלמה ידנית של פער
@@ -84,15 +97,40 @@ const API = {
   // העלאת חומר להשלמת פער — נכנס למאגר הידע ומאפשר מיפוי מחדש
   uploadGapMaterial(fileList) { return this.uploadDocuments(fileList); },
 
-  // לולאת למידה (S10): תוצאה + הגשה בפועל
-  async submitOutcome(tenderId, { result, reason, files }) {
+  reasonCodes(fallback) { return this._get('/api/tenders/reason-codes', fallback); },
+
+  // לולאת למידה (S4): תוצאה מקודדת + הגשה בפועל
+  async submitOutcome(tenderId, { result, reason, reason_code, files }) {
     const fd = new FormData();
     fd.append('result', result);
     if (reason) fd.append('reason', reason);
+    if (reason_code) fd.append('reason_code', reason_code);
     for (const f of (files || [])) fd.append('files', f);
     const res = await fetch(this.base + `/api/tenders/${tenderId}/outcome`, { method: 'POST', body: fd });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
     return res.json();
+  },
+
+  // חבילת הגשה (S3): ניתוח טופס רשמי + הפקת החבילה
+  async analyzeForm(tenderId, file) {
+    const fd = new FormData(); fd.append('file', file);
+    const res = await fetch(this.base + `/api/tenders/${tenderId}/form/analyze`, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+    return res.json();
+  },
+  // מפיק את החבילה ומוריד אותה. מחזיר את סיכום הצ׳קליסט (מה-header).
+  async buildPacket(tenderId, file) {
+    const fd = new FormData(); fd.append('file', file);
+    const res = await fetch(this.base + `/api/tenders/${tenderId}/packet`, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+    const meta = res.headers.get('X-Packet-Meta');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `packet-${tenderId}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    try { return meta ? JSON.parse(decodeURIComponent(escape(atob(meta)))) : null; } catch { return null; }
   },
 
   // טיוטה

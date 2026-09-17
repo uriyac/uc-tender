@@ -40,6 +40,16 @@
   .tabular-nums{font-variant-numeric:tabular-nums}
   [data-screen]{display:none}
   [data-screen].active{display:block}
+  /* טאבים במסך הניתוח (S2.2) */
+  .an-panel{display:none}
+  .an-panel.active{display:block}
+  .an-tab{position:relative;padding:0 2px 12px;margin-inline-end:22px;font-size:14px;font-weight:500;color:rgba(15,30,61,.5);cursor:pointer;background:none;border:none;white-space:nowrap;transition:color .15s}
+  .an-tab:hover{color:rgba(15,30,61,.8)}
+  .an-tab.active{color:var(--signal);font-weight:600}
+  .an-tab.active::after{content:"";position:absolute;inset-inline:0;bottom:-1px;height:2px;border-radius:2px;background:var(--signal)}
+  .an-tab .an-tc{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;margin-inline-start:6px;font-size:11px;font-weight:600;border-radius:999px;background:var(--signal-8);color:var(--signal);vertical-align:middle}
+  .an-tab .an-tc.warn{background:oklch(0.58 0.22 25 / 0.12);color:oklch(0.5 0.2 25)}
+  .an-tab .an-tc.zero{background:rgba(15,30,61,.06);color:rgba(15,30,61,.45)}
   @keyframes spin{to{transform:rotate(360deg)}}
   .spin{animation:spin 1s linear infinite}
   @keyframes ping{75%,100%{transform:scale(2);opacity:0}}
@@ -143,6 +153,19 @@
   function dotColor(d){return d==null?'bg-black/20':d<=7?'bg-rose-500':d<=14?'bg-amber-500':'bg-black/30'}
   function deadlineText(d){return d==null?'text-black/50':d<=7?'text-rose-700':d<=14?'text-amber-700':'text-black/60'}
   const STAGE_ORDER=['התאמה','טיוטה','אישור','הגשה'];
+  // תג-סיכון לכרטיס מכרז (S2.1): אדום אם יש דגל חמור, אחלט כתום. מוסתר אם 0.
+  function riskBadge(t){
+    const n=t.red_flags||0; if(!n) return '';
+    const high=(t.red_flags_high||0)>0;
+    const c=high?['oklch(0.58 0.22 25)','oklch(0.58 0.22 25 / 0.12)']:['var(--amber-signal)','oklch(0.72 0.16 70 / 0.14)'];
+    return `<span class="t-10 font-semibold px-1.5 h-5 inline-flex items-center gap-1 rounded-full shrink-0" style="background:${c[1]};color:${c[0]}" title="${n} דגלים אדומים">🚩 ${n}</span>`;
+  }
+  // בר-התקדמות הגשה (S2.1): נגזר משלב המכרז — מבט מהיר עד כמה התקדמנו.
+  const STAGE_PROGRESS={'התאמה':25,'טיוטה':50,'אישור':75,'הגשה':100,'הוגש':100,'נסגר':100};
+  function progressBar(t){
+    const p=STAGE_PROGRESS[t.stage]!=null?STAGE_PROGRESS[t.stage]:(t.progress||0);
+    return `<div class="mt-2 h-1 rounded-full overflow-hidden" style="background:var(--signal-8)"><div class="h-full rounded-full" style="width:${p}%;background:var(--signal);transition:width .5s"></div></div>`;
+  }
 
   async function renderDashboard(){
     const d = await window.API.dashboard(null);
@@ -188,7 +211,11 @@
     set('db-tenders-count', d.tenders.length?`${d.tenders.length} מכרזים`:'');
     document.getElementById('db-tenders').innerHTML = d.tenders.length ? d.tenders.map(t=>`
       <div class="flex items-center gap-3 px-5 py-3.5 border-t cursor-pointer hover:bg-black/[0.015]" style="border-color:var(--hairline-soft)" onclick="selectTender('${t.id}')">
-        <div class="flex-1 min-w-0"><div class="t-13 font-medium truncate">${t.name}</div><div class="t-11 text-black/55 truncate">${t.issuer} · <span class="font-mono">${t.code}</span></div></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2"><div class="t-13 font-medium truncate">${t.name}</div>${riskBadge(t)}</div>
+          <div class="t-11 text-black/55 truncate">${t.issuer} · <span class="font-mono">${t.code}</span></div>
+          ${progressBar(t)}
+        </div>
         <div class="t-12 inline-flex items-center gap-1.5 w-20 ${deadlineText(t.days)}"><span class="w-1.5 h-1.5 rounded-full ${dotColor(t.days)}"></span>${t.days==null?'—':t.days+' ימים'}</div>
         <div class="t-12 font-mono tabular-nums text-black/70 w-12 text-center">${t.match_score==null?'—':t.match_score+'%'}</div>
         <span class="t-11 font-medium px-2 h-6 inline-flex items-center rounded-full justify-center" style="background:var(--signal-8);color:var(--signal)">${t.stage}</span>
@@ -216,14 +243,72 @@
   // בחירת מכרז משורת ה-pipeline → פתיחת מסך הניתוח שלו
   window.selectTender=function(id){ window.currentTenderId=id; go('tender-analysis'); };
 
-  // כניסה חכמה: לקוח שהוקם → דשבורד; לקוח חדש (ריק) → אונבורדינג
+  // כניסה חכמה: לא מחובר → התחברות · מחובר לא-מוקם → אונבורדינג · מוקם → דשבורד
   (async function entry(){
+    const me = await window.API.authMe();
+    if(!me){ go('login'); return; }
+    window.currentUser = me;
     try{
       const [comp, kb] = await Promise.all([ window.API.company(null), window.API.knowledge(null) ]);
       const onboarded = (comp && (comp.onboarded || comp.name)) || (kb && kb.counts && kb.counts.projects > 0);
       go(onboarded ? 'dashboard' : 'welcome');
-    }catch(e){ go('dashboard'); }
+    }catch(e){ go('welcome'); }
   })();
+</script>
+
+<!-- ============================= LOGIN ============================= -->
+<section data-screen="login">
+  <div class="min-h-dvh flex items-center justify-center" style="background:var(--navy)">
+    <div class="w-full max-w-[400px] mx-auto px-8">
+      <div class="flex items-center gap-2.5 mb-7 justify-center"><span class="grid place-items-center w-9 h-9 rounded-[8px] text-white font-bold" style="background:var(--signal)">ת</span><span class="t-18 font-semibold tracking-tight text-white">UC TENDER</span></div>
+      <div class="bg-white rounded-[14px] p-7" style="box-shadow:0 20px 60px rgba(0,0,0,.35)">
+        <h1 id="lg-title" class="font-display t-24 font-semibold">התחברות</h1>
+        <p id="lg-sub" class="mt-1.5 t-13 text-black/55 mb-6">הזן את פרטי החשבון שלך.</p>
+        <div id="lg-reg" class="hidden space-y-3 mb-3">
+          <input id="lg-company" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="שם החברה" />
+          <input id="lg-name" type="text" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="שם מלא" />
+        </div>
+        <div class="space-y-3">
+          <input id="lg-email" type="email" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="email@company.co.il" />
+          <input id="lg-pass" type="password" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="סיסמה" />
+        </div>
+        <button id="lg-submit" onclick="authSubmit()" class="mt-5 w-full h-11 rounded-[8px] text-white t-13 font-semibold" style="background:var(--signal)">התחבר</button>
+        <div id="lg-hint" class="mt-3 t-12 text-center h-4"></div>
+        <div class="mt-2 t-12 text-black/55 text-center"><span id="lg-toggle-q">אין לך חשבון?</span> <a id="lg-toggle" onclick="authToggle()" class="font-semibold cursor-pointer" style="color:var(--signal)">הרשמה</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  let lgMode='login';
+  window.authToggle=function(){
+    lgMode = lgMode==='login' ? 'register' : 'login';
+    const reg = lgMode==='register';
+    document.getElementById('lg-reg').classList.toggle('hidden', !reg);
+    document.getElementById('lg-title').textContent = reg? 'יצירת חשבון' : 'התחברות';
+    document.getElementById('lg-sub').textContent = reg? 'פתח חשבון חדש לחברה שלך.' : 'הזן את פרטי החשבון שלך.';
+    document.getElementById('lg-submit').textContent = reg? 'צור חשבון' : 'התחבר';
+    document.getElementById('lg-toggle-q').textContent = reg? 'כבר יש לך חשבון?' : 'אין לך חשבון?';
+    document.getElementById('lg-toggle').textContent = reg? 'התחברות' : 'הרשמה';
+    document.getElementById('lg-hint').textContent='';
+  };
+  window.authSubmit=async function(){
+    const email=document.getElementById('lg-email').value.trim();
+    const password=document.getElementById('lg-pass').value;
+    const hint=document.getElementById('lg-hint');
+    const btn=document.getElementById('lg-submit');
+    if(!email||!password){ hint.style.color='#B45309'; hint.textContent='נדרשים אימייל וסיסמה.'; return; }
+    btn.disabled=true; hint.style.color=''; hint.textContent='רגע...';
+    try{
+      if(lgMode==='register'){
+        await window.API.register({ email, password, name:document.getElementById('lg-name').value.trim(), companyName:document.getElementById('lg-company').value.trim() });
+      } else {
+        await window.API.login(email, password);
+      }
+      location.reload();
+    }catch(e){ hint.style.color='#B91C1C'; hint.textContent=(''+e.message).includes('undefined')?'שגיאת התחברות':e.message; btn.disabled=false; }
+  };
 </script>
 
 <!-- ============================= WELCOME ============================= -->
@@ -522,16 +607,25 @@
     const sumEl=document.getElementById('an-summary');
     if(sumEl) sumEl.innerHTML = sumItems.length ? `<div class="rounded-[8px] border bg-white card-soft p-4" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/45 mb-3">סיכום מכרז</div><div class="grid grid-cols-2 md:grid-cols-5 gap-4">${sumItems.map(([l,v])=>`<div><div class="t-11 text-black/50">${l}</div><div class="t-13 font-medium mt-0.5">${v}</div></div>`).join('')}</div></div>` : '';
 
+    // P2 — באנר OCR: המסמך סרוק, חולץ אוטומטית, מומלץ לאמת
+    const ocrEl=document.getElementById('an-ocr-banner');
+    if(ocrEl) ocrEl.innerHTML = t.ocr ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.72 0.16 70 / 0.4);background:oklch(0.72 0.16 70 / 0.06)"><span class="text-[18px] shrink-0">📄</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.5 0.13 60)">המסמך סרוק — חולץ ב-OCR${t.ocr_confidence?` (ביטחון ${t.ocr_confidence}%)`:''}</div><div class="t-12 text-black/65 mt-0.5">ייתכנו אי-דיוקים בזיהוי. מומלץ לאמת נתונים קריטיים (סכומים, תאריכים, תנאי סף) מול המסמך המקורי.</div></div></div>` : '';
+
+    // S4.2 — באנר זיכרון-מפרסם: "כבר התמודדנו מול X"
+    const ib=document.getElementById('an-issuer-banner'), ins=data.issuer_insight;
+    if(ib) ib.innerHTML = ins ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.55 0.13 255 / 0.3);background:oklch(0.55 0.13 255 / 0.05)"><span class="text-[18px] shrink-0">🧠</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.42 0.13 255)">כבר התמודדנו מול ${esc(ins.issuer)}</div><div class="t-12 text-black/65 mt-0.5">${ins.submissions} הגשות${ins.win_rate!=null?` · ${ins.win_rate}% זכייה`:''}${ins.top_loss_reason?` · סיבת הפסד נפוצה: <span class="font-medium">${esc(ins.top_loss_reason.label)}</span>`:''}. המערכת לומדת מההיסטוריה מול מפרסם זה.</div></div></div>` : '';
+
     // בדיקת תנאי סף (B10) — מוצלב מול פרופיל החברה
     const checks=(data.thresholds&&data.thresholds.checks)||[];
     const stColor={met:'oklch(0.62 0.15 155)',gap:'oklch(0.58 0.22 25)',unknown:'var(--amber-signal)'}, stIcon={met:'✓',gap:'✕',unknown:'?'};
     const thEl=document.getElementById('an-thresholds');
-    if(thEl) thEl.innerHTML = checks.length ? `<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-3"><h2 class="t-18 font-semibold">בדיקת תנאי סף</h2><div class="t-11 text-black/50">מוצלב מול פרופיל החברה</div></div><div>${checks.map(c=>`<div class="flex items-center justify-between gap-4 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2 t-13"><span style="color:${stColor[c.status]||'var(--amber-signal)'}">${stIcon[c.status]||'?'}</span><span class="font-medium">${c.label}</span></div><div class="t-12 ${c.status==='met'?'text-emerald-700':c.status==='gap'?'text-rose-600':'text-amber-700'}">${c.have}</div></div>`).join('')}</div></div>` : '';
+    if(thEl) thEl.innerHTML = checks.length ? `<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-3"><h2 class="t-18 font-semibold">בדיקת תנאי סף</h2><div class="t-11 text-black/50">מוצלב מול פרופיל החברה</div></div><div>${checks.map(c=>`<div class="flex items-center justify-between gap-4 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2 t-13"><span style="color:${stColor[c.status]||'var(--amber-signal)'}">${stIcon[c.status]||'?'}</span><span class="font-medium">${c.label}</span></div><div class="t-12 ${c.status==='met'?'text-emerald-700':c.status==='gap'?'text-rose-600':'text-amber-700'}">${c.have}</div></div>`).join('')}</div></div>` : '<div class="rounded-[8px] border bg-white card-soft p-6 t-13 text-black/45 text-center" style="border-color:var(--hairline)">לא זוהו תנאי סף מובנים במכרז זה.</div>';
 
     // דגלים אדומים (B10)
     const flags=(data.redFlags&&data.redFlags.flags)||[];
     const rfEl=document.getElementById('an-redflags');
-    if(rfEl) rfEl.innerHTML = flags.length ? `<div class="rounded-[8px] border p-5" style="border-color:oklch(0.58 0.22 25 / 0.4);background:oklch(0.58 0.22 25 / 0.04)"><div class="flex items-center gap-2 mb-3"><h2 class="t-18 font-semibold" style="color:oklch(0.5 0.2 25)">🚩 דגלים אדומים</h2><span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full" style="background:oklch(0.58 0.22 25 / 0.12);color:oklch(0.5 0.2 25)">${flags.length}</span></div><div class="space-y-2.5">${flags.map(f=>`<div class="flex items-start gap-3"><span class="mt-1 w-2 h-2 rounded-full shrink-0" style="background:${f.severity==='high'?'oklch(0.58 0.22 25)':'var(--amber-signal)'}"></span><div><div class="t-13 font-medium">${f.label}</div><div class="t-12 text-black/60">${f.detail}</div></div></div>`).join('')}</div></div>` : '';
+    const sevTag={high:['גבוה','oklch(0.58 0.22 25)','oklch(0.58 0.22 25 / 0.12)'],medium:['בינוני','var(--amber-signal)','oklch(0.72 0.16 70 / 0.14)'],low:['מידע','rgba(15,30,61,.55)','rgba(15,30,61,.07)']};
+    if(rfEl) rfEl.innerHTML = flags.length ? `<div class="rounded-[8px] border p-5" style="border-color:oklch(0.58 0.22 25 / 0.4);background:oklch(0.58 0.22 25 / 0.04)"><div class="flex items-center gap-2 mb-3"><h2 class="t-18 font-semibold" style="color:oklch(0.5 0.2 25)">🚩 דגלים אדומים</h2><span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full" style="background:oklch(0.58 0.22 25 / 0.12);color:oklch(0.5 0.2 25)">${flags.length}</span></div><div class="space-y-3">${flags.map(f=>{const sv=sevTag[f.severity]||sevTag.medium;return `<div class="flex items-start gap-3"><span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${sv[1]}"></span><div class="flex-1"><div class="flex items-center gap-2"><div class="t-13 font-medium">${esc(f.label)}</div><span class="t-10 font-semibold px-1.5 h-5 inline-flex items-center rounded-full" style="background:${sv[2]};color:${sv[1]}">${sv[0]}</span></div><div class="t-12 text-black/60 mt-0.5">${esc(f.detail)}</div>${f.action?`<div class="t-12 mt-1.5 flex items-start gap-1.5" style="color:oklch(0.45 0.13 155)"><span class="shrink-0">↳ מומלץ:</span><span>${esc(f.action)}</span></div>`:''}</div></div>`;}).join('')}</div></div>` : '<div class="rounded-[8px] border bg-white card-soft p-6 flex items-center justify-center gap-2 t-13 text-black/55" style="border-color:var(--hairline)"><span style="color:oklch(0.62 0.15 155)">✓</span>לא זוהו דגלים אדומים — לא נמצאו מלכודות ידועות במכרז.</div>';
 
     const reco=document.getElementById('an-reco'), goDecision=score>=60;
     if(goDecision){
@@ -541,8 +635,71 @@
       reco.style.borderColor='oklch(0.72 0.16 70 / 0.4)'; reco.style.background='oklch(0.72 0.16 70 / 0.06)';
       reco.innerHTML=`<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">🤔</div><div class="flex-1"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">המלצת המערכת</span><h3 class="t-24 font-semibold tracking-tight mt-2 mb-1.5">לשקול בזהירות</h3><p class="t-13 text-black/70">רק ${met.length} מתוך ${total} דרישות מכוסות. ודא שהפערים ניתנים לסגירה בזמן.</p></div>`;
     }
+
+    // מוני הטאבים (S2.2) + שמירת הטאב הפעיל בעת רענון (resolveGap וכו')
+    anSetCount('an-tc-gap', gaps.length, false);
+    anSetCount('an-tc-th', checks.length, false);
+    anSetCount('an-tc-rf', flags.length, true);
+    anTab(document.querySelector('#an-tabs .an-tab.active')?.dataset.antab || 'overview');
+    renderTailoring(id); // קומת הגמישות (F2) — נטען במקביל
   }
   window.renderAnalysis=renderAnalysis;
+
+  // F2 — כרטיסי "התאמה תפורה": לכל דרישה, הנכס המותפר עם מד-מתיחה גלוי.
+  async function renderTailoring(id){
+    const el=document.getElementById('an-tailoring'); if(!el) return;
+    let data; try{ data=await window.API.tenderTailoring(id,null); }catch(e){ data=null; }
+    const items=(data&&data.tailorings)||[];
+    const sourced=items.filter(t=>t.hasSource);
+    anSetCount('an-tc-tl', sourced.length, false);
+    // F3 — באנר-הזדמנות: מכרז לא-בהתמחות-ישירה שניתן לתפירה (הרחבת מרחב המכרזים)
+    const ob=document.getElementById('an-opportunity-banner'), sm=(data&&data.summary)||{};
+    if(ob) ob.innerHTML = (sm.adjacent>=1) ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.68 0.16 45 / 0.35);background:oklch(0.72 0.16 60 / 0.06)"><span class="text-[18px] shrink-0">🎯</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.5 0.16 45)">הזדמנות — גם אם זה לא בדיוק ההתמחות שלך</div><div class="t-12 text-black/65 mt-0.5">${sm.tailored} מהנכסים שלך ניתנים לתפירה למכרז זה, מתוכם <b>${sm.adjacent} התאמות סמוכות</b>. שווה לשקול גישה — ראה טאב "התאמה תפורה".</div></div></div>` : '';
+    if(!items.length){ el.innerHTML='<div class="rounded-[8px] border bg-white card-soft p-6 t-13 text-black/45 text-center" style="border-color:var(--hairline)">אין דרישות לתפירה.</div>'; return; }
+    // תג-מתיחה: ישיר=ירוק, סמוך=כתום, מרחיב=אזהרה
+    const strTag={direct:['התאמה ישירה','oklch(0.42 0.14 155)','oklch(0.62 0.15 155 / 0.12)'],adjacent:['התאמה סמוכה','var(--amber-signal)','oklch(0.72 0.16 70 / 0.14)'],stretch:['⚠ התאמה מרחיבה','oklch(0.5 0.16 40)','oklch(0.68 0.16 45 / 0.14)']};
+    const chip=(txt,bg,fg)=>`<span class="t-11 px-2 h-6 inline-flex items-center rounded-full" style="background:${bg};color:${fg}">${esc(txt)}</span>`;
+    const head=`<div class="flex items-baseline justify-between mb-4"><div><h2 class="t-18 font-semibold">התאמה תפורה</h2><p class="t-12 text-black/55 mt-0.5">הצגת הנכסים שלך בתפירה לדרישות — כמו קו״ח למשרה. לעולם בלי המצאה.</p></div><div class="t-12 text-black/50">${data.summary.tailored}/${data.summary.total} תפורות${data.summary.adjacent?` · ${data.summary.adjacent} סמוכות`:''}</div></div>`;
+    const cards=items.map(t=>{
+      if(!t.hasSource){ return `<div class="rounded-[8px] border p-4 mb-2.5" style="border-color:var(--hairline);background:#FAFAF8"><div class="t-13 font-medium text-black/70">${esc(cleanReq(t.requirement))}</div><div class="t-12 text-black/45 mt-1">אין נכס תואם בזיכרון — פער. ניתן להשלים ידנית.</div></div>`; }
+      const st=strTag[t.stretch]||strTag.adjacent;
+      const emph=(t.emphasize||[]).map(d=>chip(d,'var(--signal-8)','var(--signal)')).join(' ');
+      const lang=(t.tender_language||[]).map(w=>chip(w,'rgba(15,30,61,.05)','rgba(15,30,61,.6)')).join(' ');
+      const vars=(t.variants||[]).map(v=>`<li class="flex items-start gap-2 t-12 text-black/70 py-1"><span class="text-black/30 shrink-0">›</span>${esc(v)}</li>`).join('');
+      return `<div class="rounded-[8px] border bg-white card-soft p-4 mb-3" style="border-color:var(--hairline)">
+        <div class="flex items-start justify-between gap-3 mb-2"><div class="t-13 font-semibold flex-1">${esc(cleanReq(t.requirement))}</div>${chip(st[0],st[2],st[1])}</div>
+        <div class="t-12 text-black/60 mb-2">מקור: <span class="font-medium">${esc(t.project)}</span> · התאמה ${t.fit_score}%</div>
+        ${emph?`<div class="mb-2"><div class="t-10 uppercase tracking-wide text-black/40 mb-1">מבליטים</div><div class="flex flex-wrap gap-1.5">${emph}</div></div>`:''}
+        ${t.bridge?`<div class="t-12 text-black/75 mb-2" style="border-inline-start:2px solid var(--signal-8);padding-inline-start:8px">${esc(t.bridge)}</div>`:''}
+        ${lang?`<div class="mb-2"><div class="t-10 uppercase tracking-wide text-black/40 mb-1">שפת המכרז שאומצה</div><div class="flex flex-wrap gap-1.5">${lang}</div></div>`:''}
+        ${vars?`<details class="mt-1"><summary class="t-12 font-medium cursor-pointer" style="color:var(--signal)">חלופות ניסוח (${t.variants.length})</summary><ul class="mt-1">${vars}</ul></details>`:''}
+      </div>`;
+    }).join('');
+    el.innerHTML=head+cards;
+  }
+  function anSetCount(id,n,warnIfAny){ const el=document.getElementById(id); if(!el) return; el.textContent=n; el.className='an-tc'+(n?(warnIfAny?' warn':''):' zero'); }
+  function anTab(name){
+    document.querySelectorAll('#an-tabs .an-tab').forEach(b=>b.classList.toggle('active', b.dataset.antab===name));
+    document.querySelectorAll('.an-panel').forEach(p=>p.classList.toggle('active', p.dataset.anpanel===name));
+  }
+  window.anTab=anTab;
+  // חבילת הגשה (S3): העלאת טופס → הפקה+הורדה + סיכום צ׳קליסט
+  async function packetChosen(input){
+    const file=input.files&&input.files[0]; if(!file) return;
+    const id=window.currentTenderId;
+    const st=document.getElementById('packet-status'), out=document.getElementById('packet-result');
+    if(!id){ if(st) st.textContent='בחר מכרז תחילה'; return; }
+    if(st) st.textContent='מפיק חבילה…'; if(out) out.innerHTML='';
+    try{
+      const meta=await window.API.buildPacket(id,file);
+      if(st) st.innerHTML='<span style="color:oklch(0.48 0.14 155)">✓ החבילה הופקה והורדה</span>';
+      if(out&&meta){ const d=meta.documents||{}, s=meta.signatures||{};
+        out.innerHTML=`<div class="rounded-[8px] border p-3 t-12" style="border-color:var(--hairline-soft);background:var(--signal-8)">מסמכים נדרשים: <b>${d.total||0}</b> · <span style="color:oklch(0.48 0.14 155)">✓ ${d.have||0} קיימים</span> · <span style="color:oklch(0.55 0.2 25)">✗ ${d.missing||0} חסרים</span> · <span style="color:var(--amber-signal)">○ ${d.action||0} לפעולה</span> · חתימות: <b>${s.total||0}</b></div>`;
+      }
+    }catch(e){ if(st) st.innerHTML='<span style="color:oklch(0.55 0.2 25)">✕ '+(e.message||'שגיאה')+'</span>'; }
+    finally{ input.value=''; }
+  }
+  window.packetChosen=packetChosen;
 
   // --- השלמת פערים במסך הניתוח: "מה צריך" + טיפול ידני (שימוש חוזר ב-resolveGap/clearGap) ---
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -561,7 +718,7 @@
       ? chip(...G,`<span>✓</span><span class="tabular-nums">${met.length}</span> עומדים <span class="t-10 opacity-60">▾</span>`,'onclick="anToggleMet(this)" style="cursor:pointer"')
       : chip(...M,`<span>✓</span><span class="tabular-nums">0</span> עומדים`);
     const gapChip = gaps.length
-      ? chip(...A,`<span>⚠</span><span class="tabular-nums">${gaps.length}</span> פערים <span class="t-10 opacity-60">↓</span>`,`onclick="document.getElementById('an-gaps-detail').scrollIntoView({behavior:'smooth',block:'start'})" style="cursor:pointer"`)
+      ? chip(...A,`<span>⚠</span><span class="tabular-nums">${gaps.length}</span> פערים <span class="t-10 opacity-60">←</span>`,`onclick="anTab('reqs')" style="cursor:pointer"`)
       : chip(...G,`<span>✓</span><span class="tabular-nums">0</span> פערים`);
     const failChip = fails.length
       ? chip('oklch(0.58 0.22 25 / 0.06)','oklch(0.58 0.22 25 / 0.30)','oklch(0.5 0.2 25)',`<span>✕</span><span class="tabular-nums">${fails.length}</span> לא עומדים <span class="t-10 opacity-60">▾</span>`,'onclick="anToggleMet(this)" style="cursor:pointer"')
@@ -629,6 +786,9 @@
     <div class="max-w-[1080px] mx-auto px-8 py-10">
       <div class="flex items-center justify-between mb-8"><a onclick="go('dashboard')" class="inline-flex items-center gap-2 t-13 text-black/60 hover:text-black cursor-pointer">→ חזרה ללוח הבקרה</a><div class="t-11 text-black/50 tracking-wide uppercase">ניתוח מכרז · Go / No-Go</div></div>
       <div class="mb-8"><div id="an-code" class="t-11 font-medium tracking-wide text-black/50 mb-2">—</div><h1 id="an-name" class="text-[34px] leading-[1.2] font-semibold tracking-tight mb-3">—</h1><div class="flex items-center gap-2 t-13 text-black/60"><span id="an-issuer">—</span><span class="text-black/25">·</span><span class="inline-flex items-center gap-1.5 font-medium" style="color:var(--amber-signal)"><span class="w-1.5 h-1.5 rounded-full" style="background:var(--amber-signal)"></span><span id="an-deadline">—</span></span></div></div>
+      <div id="an-ocr-banner" class="mb-6"></div>
+      <div id="an-issuer-banner" class="mb-6"></div>
+      <div id="an-opportunity-banner" class="mb-6"></div>
       <div id="an-summary" class="mb-8"></div>
       <div class="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 mb-10">
         <div class="rounded-[8px] border bg-white card-soft p-5 flex items-center gap-5" style="border-color:var(--hairline)">
@@ -637,13 +797,49 @@
         </div>
         <div id="an-reco" class="rounded-[8px] border p-5 flex items-start gap-4" style="border-color:var(--hairline)"></div>
       </div>
-      <div id="an-statebar" class="mb-8"></div>
-      <input id="an-material" type="file" multiple class="hidden" onchange="anMaterialChosen(this)" />
-      <div id="an-gaps-detail" class="mb-10"></div>
-      <div id="an-thresholds" class="mb-8"></div>
-      <div id="an-redflags" class="mb-10"></div>
-      <div class="mb-10"><div class="rounded-[8px] border border-dashed p-6" style="border-color:#D6D6CE;background:rgba(255,255,255,0.6)"><div class="flex items-start gap-4"><div class="w-10 h-10 rounded-[6px] bg-black/[0.04] flex items-center justify-center shrink-0 text-black/50">🔒</div><div class="flex-1"><div class="flex items-center gap-2 mb-1.5"><h3 class="t-15 font-semibold">ניתוח מתחרים</h3><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></div><p class="t-12 text-black/55 max-w-[640px]">ניתוח מתחרים וסיכויי זכייה מבוסס נתוני שוק — יתווסף בשלב הבא (Phase 2).</p></div></div></div></div>
-      <div class="flex flex-wrap items-center gap-3 pt-6 border-t" style="border-color:var(--hairline)"><button onclick="go('draft-mapping')" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ צור טיוטה</button><button disabled title="ארכוב מכרזים יתווסף בקרוב" class="inline-flex items-center gap-2 h-12 px-5 rounded-[8px] border bg-white t-13 font-medium text-black/40 cursor-not-allowed" style="border-color:#D6D6CE">ארכב מכרז <span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></button><div class="t-11 text-black/50 mr-auto">הטיוטה תיווצר על סמך הזיכרון הארגוני בלבד — ללא הזיות.</div></div>
+      <!-- טאבים (S2.2) — הפאנלים למטה שומרים על אותם element-IDs שהרינדור כותב אליהם -->
+      <div id="an-tabs" class="flex items-center border-b mb-6 overflow-x-auto" style="border-color:var(--hairline)">
+        <button type="button" data-antab="overview" onclick="anTab('overview')" class="an-tab active">סקירה</button>
+        <button type="button" data-antab="reqs" onclick="anTab('reqs')" class="an-tab">דרישות ופערים<span id="an-tc-gap" class="an-tc zero">0</span></button>
+        <button type="button" data-antab="tailoring" onclick="anTab('tailoring')" class="an-tab">התאמה תפורה<span id="an-tc-tl" class="an-tc zero">0</span></button>
+        <button type="button" data-antab="thresholds" onclick="anTab('thresholds')" class="an-tab">תנאי סף<span id="an-tc-th" class="an-tc zero">0</span></button>
+        <button type="button" data-antab="risks" onclick="anTab('risks')" class="an-tab">דגלים אדומים<span id="an-tc-rf" class="an-tc zero">0</span></button>
+      </div>
+
+      <div class="an-panel active" data-anpanel="overview">
+        <div id="an-statebar" class="mb-4"></div>
+      </div>
+      <div class="an-panel" data-anpanel="reqs">
+        <input id="an-material" type="file" multiple class="hidden" onchange="anMaterialChosen(this)" />
+        <div id="an-gaps-detail" class="mb-4"></div>
+      </div>
+      <div class="an-panel" data-anpanel="tailoring">
+        <div id="an-tailoring" class="mb-4"></div>
+      </div>
+      <div class="an-panel" data-anpanel="thresholds">
+        <div id="an-thresholds" class="mb-4"></div>
+      </div>
+      <div class="an-panel" data-anpanel="risks">
+        <div id="an-redflags" class="mb-6"></div>
+        <div><div class="rounded-[8px] border border-dashed p-6" style="border-color:#D6D6CE;background:rgba(255,255,255,0.6)"><div class="flex items-start gap-4"><div class="w-10 h-10 rounded-[6px] bg-black/[0.04] flex items-center justify-center shrink-0 text-black/50">🔒</div><div class="flex-1"><div class="flex items-center gap-2 mb-1.5"><h3 class="t-15 font-semibold">ניתוח מתחרים</h3><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></div><p class="t-12 text-black/55 max-w-[640px]">ניתוח מתחרים וסיכויי זכייה מבוסס נתוני שוק — יתווסף בשלב הבא (Phase 2).</p></div></div></div></div>
+      </div>
+      <!-- חבילת הגשה (S3): העלאת הטופס הרשמי → מילוי אוטומטי + צ׳קליסטים → PDF אחד -->
+      <div class="rounded-[8px] border bg-white card-soft p-5 mb-6" style="border-color:var(--hairline)">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-[6px] flex items-center justify-center shrink-0 text-[20px]" style="background:var(--signal-8)">📦</div>
+          <div class="flex-1 min-w-0">
+            <div class="t-15 font-semibold mb-1">חבילת הגשה</div>
+            <p class="t-12 text-black/55 mb-3 max-w-[620px]">העלה את הטופס הרשמי של המכרז (PDF). המערכת תמלא אוטומטית את השדות מפרופיל החברה — <b>רק מה שיש לו מקור</b>, שדה חסר יישאר ריק ומסומן — ותפיק חבילה אחת: טופס ממולא + צ׳קליסט מסמכים נדרשים + צ׳קליסט חתימות.</p>
+            <input id="packet-file" type="file" accept="application/pdf,.pdf" class="hidden" onchange="packetChosen(this)" />
+            <div class="flex flex-wrap items-center gap-3">
+              <button onclick="document.getElementById('packet-file').click()" class="inline-flex items-center gap-2 h-10 px-5 rounded-[8px] t-13 font-medium text-white" style="background:var(--signal)">📎 העלה טופס והפק חבילה</button>
+              <span id="packet-status" class="t-12 text-black/55"></span>
+            </div>
+            <div id="packet-result" class="mt-3"></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 pt-6 border-t" style="border-color:var(--hairline)"><button onclick="go('draft-mapping')" class="inline-flex items-center gap-2 h-12 px-6 rounded-[6px] t-15 font-medium text-white" style="background:var(--signal)">✦ צור טיוטה</button><div class="t-11 text-black/50 mr-auto">הטיוטה תיווצר על סמך הזיכרון הארגוני בלבד — ללא הזיות.</div></div>
     </div>
   </div>
 </section>
@@ -847,9 +1043,13 @@
           </div>
         </div>
 
-        <!-- סיבה (אם נפסלנו) -->
-        <div id="ps-reason-wrap" class="mt-6 hidden"><div class="t-13 font-semibold mb-2">מה הייתה הסיבה? (אופציונלי)</div>
-          <textarea id="ps-reason" class="w-full rounded-[8px] border p-3 t-13" style="border-color:var(--hairline);min-height:90px" placeholder="לדוגמה: מחיר גבוה מדי / חסר תנאי סף / ניסיון לא מספק..."></textarea>
+        <!-- סיבה (אם נפסלנו) — קטגוריה מקודדת (חובה) + פירוט חופשי (אופציונלי) -->
+        <div id="ps-reason-wrap" class="mt-6 hidden">
+          <div class="t-13 font-semibold mb-2">מה הייתה סיבת ההפסד? <span class="t-11 font-normal text-black/50">(חובה — כך המערכת לומדת)</span></div>
+          <select id="ps-reason-code" class="w-full rounded-[8px] border p-3 t-13 bg-white mb-3" style="border-color:var(--hairline)">
+            <option value="">— בחר סיבה —</option>
+          </select>
+          <textarea id="ps-reason" class="w-full rounded-[8px] border p-3 t-13" style="border-color:var(--hairline);min-height:70px" placeholder="פירוט נוסף (אופציונלי) — לצבע בלבד; לא נכנס למאגר כעובדה."></textarea>
         </div>
 
         <div class="mt-8 flex items-center gap-4 border-t pt-6" style="border-color:var(--hairline)">
@@ -880,9 +1080,17 @@
     function renderList(){ list.innerHTML=files.map(f=>`<div class="p-3 flex items-center gap-3 border rounded-[8px] bg-white" style="border-color:var(--hairline)"><span class="grid place-items-center w-8 h-8 rounded-[8px] bg-black/[0.04] shrink-0">${icon(f.name)}</span><div class="flex-1 t-13 font-semibold truncate">${f.name}</div><span class="t-12 text-emerald-700">✓ נבחר</span></div>`).join(''); }
     const reset=()=>{drop.style.borderColor='#D6D6CE';drop.style.background='#fff';};
 
+    // מילוי dropdown קטגוריות הסיבה (פעם אחת)
+    const rcSel=document.getElementById('ps-reason-code');
+    (async()=>{ try{ const codes=await window.API.reasonCodes([]); if(rcSel) rcSel.innerHTML='<option value="">— בחר סיבה —</option>'+codes.map(c=>`<option value="${c.code}">${c.label}</option>`).join(''); }catch(e){} })();
+    if(rcSel) rcSel.addEventListener('change',()=>refreshSubmit());
+
     function refreshSubmit(){
       const btn=document.getElementById('ps-submit'), hint=document.getElementById('ps-hint');
-      if(result){ btn.classList.remove('opacity-40','pointer-events-none'); hint.textContent = files.length?`${files.length} קבצים ילמדו · מוכן לשמירה`:'מוכן לשמירה'; }
+      // הפסד מחייב בחירת קטגוריה לפני שמירה (זה מה שהופך את הלמידה למדידה)
+      const needsReason = result==='lose' && !(rcSel && rcSel.value);
+      if(result && !needsReason){ btn.classList.remove('opacity-40','pointer-events-none'); hint.textContent = files.length?`${files.length} קבצים ילמדו · מוכן לשמירה`:'מוכן לשמירה'; hint.style.color=''; }
+      else { btn.classList.add('opacity-40','pointer-events-none'); hint.textContent = needsReason?'בחר סיבת הפסד כדי להמשיך.':'בחר תוצאה כדי להמשיך.'; }
     }
 
     document.querySelectorAll('.ps-res').forEach(b=>b.addEventListener('click',()=>{
@@ -904,6 +1112,7 @@
       document.querySelectorAll('.ps-res').forEach(x=>{x.style.borderColor='var(--hairline)';x.style.background='#fff';});
       document.getElementById('ps-reason-wrap').classList.add('hidden');
       document.getElementById('ps-reason').value='';
+      if(rcSel) rcSel.value='';
       document.getElementById('ps-body').classList.remove('hidden');
       document.getElementById('ps-done').classList.add('hidden');
       const btn=document.getElementById('ps-submit'), hint=document.getElementById('ps-hint');
@@ -915,16 +1124,20 @@
       if(!result) return;
       const btn=document.getElementById('ps-submit'), hint=document.getElementById('ps-hint');
       const reason=document.getElementById('ps-reason').value;
+      const reason_code=rcSel?rcSel.value:'';
+      if(result==='lose' && !reason_code){ hint.textContent='בחר סיבת הפסד כדי להמשיך.'; hint.style.color='#B91C1C'; return; }
       btn.disabled=true; btn.innerHTML='<span class="spin inline-block">◠</span> שומר...';
       try{
-        const r=await window.API.submitOutcome(window.currentTenderId,{result,reason,files});
+        const r=await window.API.submitOutcome(window.currentTenderId,{result,reason,reason_code,files});
         const learned=r.learned||{projects:0,certifications:0};
         document.getElementById('ps-body').classList.add('hidden');
         document.getElementById('ps-done').classList.remove('hidden');
-        document.getElementById('ps-done-detail').textContent =
-          (learned.projects||learned.certifications)
-            ? `נלמדו ${learned.projects} פרויקטים ו-${learned.certifications} אישורים חדשים. הזיכרון הארגוני גדל.`
-            : 'התוצאה נשמרה. הזיכרון הארגוני עודכן.';
+        // S4.6 — למידה גלויה: מה בדיוק השתנה
+        const bits=[];
+        if(learned.projects||learned.certifications) bits.push(`נלמדו ${learned.projects} פרויקטים ו-${learned.certifications} אישורים — הזיכרון גדל`);
+        if(result==='win' && learned.winningEvidence) bits.push('ההגשה הזוכה נשמרה כ<b>ראיה מנצחת</b> — תשמש בתפירות עתידיות');
+        if(result==='lose' && reason_code){ const lbl=(rcSel&&rcSel.selectedOptions[0]?rcSel.selectedOptions[0].textContent:reason_code); bits.push(`נרשמה סיבת ההפסד (<b>${lbl}</b>) — תחדד את הניתוח מול מפרסם זה`); }
+        document.getElementById('ps-done-detail').innerHTML = bits.length ? bits.join('.<br>')+'.' : 'התוצאה נשמרה. הזיכרון הארגוני עודכן.';
       }catch(e){ hint.textContent='שמירה נכשלה: '+e.message; hint.style.color='#B91C1C'; }
       finally{ btn.disabled=false; btn.innerHTML='שמור ועדכן זיכרון'; }
     };
@@ -1020,7 +1233,19 @@
           <div class="flex items-center justify-between py-2 border-t" style="border-color:var(--hairline-soft)"><div><div class="t-13 font-medium">תקני אבטחה (SOC 2 / ISO 27001)</div><div class="t-12 text-black/55">הסמכות פורמליות</div></div><span class="inline-flex items-center t-11 font-semibold px-2 h-6 rounded-full" style="background:var(--signal-8);color:var(--signal)">בתכנון</span></div>
         </div>
       </div>
+      <div class="rounded-[8px] border bg-white card-soft p-6 flex items-center justify-between" style="border-color:var(--hairline)"><div><h2 class="t-18 font-semibold">חשבון</h2><div class="t-12 text-black/55 mt-0.5">מחובר כ־<span id="set-user">—</span></div></div><button onclick="doLogout()" class="t-13 font-semibold border rounded-[8px] h-10 px-4" style="border-color:var(--hairline);color:#B91C1C">התנתקות</button></div>
+      <div class="rounded-[8px] border bg-white card-soft p-6 flex items-center justify-between gap-4" style="border-color:#FCA5A5">
+        <div><h2 class="t-18 font-semibold" style="color:#B91C1C">ניקוי מכרזים</h2><div class="t-12 text-black/55 mt-0.5 max-w-[520px]">מוחק את כל המכרזים, הדרישות, הטיוטות והתוצאות. מאגר הידע (פרויקטים, אישורים) ופרטי החברה יישמרו. הפעולה אינה הפיכה.</div></div>
+        <button onclick="doClearTenders(this)" class="t-13 font-semibold rounded-[8px] h-10 px-4 shrink-0 text-white" style="background:#B91C1C">נקה מכרזים</button>
+      </div>
     </div>`;
+  window.doLogout=async function(){ try{ await window.API.logout(); }catch(e){} location.reload(); };
+  window.doClearTenders=async function(btn){
+    if(!confirm('לנקות את כל המכרזים, הטיוטות והתוצאות?\n\nמאגר הידע ופרטי החברה יישמרו. הפעולה אינה הפיכה.')) return;
+    const prev=btn.textContent; btn.disabled=true; btn.textContent='מנקה…';
+    try{ await window.API.clearTenders(); alert('המכרזים נוקו בהצלחה.'); location.reload(); }
+    catch(e){ alert('הניקוי נכשל: '+(e?.message||e)); btn.disabled=false; btn.textContent=prev; }
+  };
 
   document.querySelector('[data-screen="knowledge"]').innerHTML = shell('knowledge','מאגר ידע', knowledgeInner);
   document.querySelector('[data-screen="drafts"]').innerHTML = shell('drafts','טיוטות ואישורים', draftsInner);
@@ -1029,6 +1254,8 @@
   // ---- הגדרות — פרופיל החברה מונחה-נתונים ----
   async function renderSettings(){
     const c = await window.API.company({});
+    const meEl=document.getElementById('set-user');
+    if(meEl){ const me=window.currentUser||await window.API.authMe(); meEl.textContent = me? me.email : '—'; }
     const esc=v=>(v==null?'':String(v));
     const row=(label,val,mono)=>`<div class="flex justify-between gap-6 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><span class="t-12 text-black/55 shrink-0">${label}</span><span class="t-13 text-black/85 text-left ${mono?'font-mono':''}" style="word-break:break-word">${esc(val).trim()||'—'}</span></div>`;
     const chips=arr=>(arr&&arr.length)?arr.map(s=>`<span class="t-11 h-6 inline-flex items-center px-2 rounded-[3px] border font-semibold" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${s}</span>`).join(' '):'<span class="t-12 text-black/40">—</span>';
@@ -1242,8 +1469,8 @@
   })();
 </script>
 
-<!-- Screen switcher (floating, collapsible dev aid) -->
-<div style="position:fixed;bottom:12px;left:12px;z-index:99">
+<!-- Screen switcher — עזר-פיתוח בלבד. מוסתר במוצר; מופעל ב-localStorage.uct_dev='1' או #dev. -->
+<div id="dev-switcher" style="position:fixed;bottom:12px;left:12px;z-index:99;display:none">
   <div id="scr-panel" class="hidden absolute bottom-11 left-0 bg-white border rounded-[8px] shadow-lg p-2 flex flex-wrap gap-1 w-[300px]" style="border-color:var(--hairline)">
     <span class="t-10 font-semibold text-black/40 w-full px-1">מסכים (פרוטוטייפ):</span>
     <button onclick="go('welcome')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">Welcome</button>
@@ -1261,6 +1488,10 @@
   </div>
   <button onclick="document.getElementById('scr-panel').classList.toggle('hidden')" title="ניווט מסכים (פרוטוטייפ)" class="w-8 h-8 rounded-full bg-white/80 border shadow-sm flex items-center justify-center t-12 text-black/35 hover:text-black/70 hover:bg-white transition-colors" style="border-color:var(--hairline)">☰</button>
 </div>
+<script>
+  // חושף את עזר-הפיתוח רק כשמפעילים אותו במפורש (לא במוצר המופץ).
+  try { if (localStorage.getItem('uct_dev') === '1' || location.hash === '#dev') { const d = document.getElementById('dev-switcher'); if (d) d.style.display = ''; } } catch (e) {}
+</script>
 
 </body>
 </html>
