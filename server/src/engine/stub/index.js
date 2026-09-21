@@ -198,8 +198,10 @@ export function parseTender(rawText) {
   const isMeta = (l) => stripMd(l) === nameLine || (issuer && l.includes(issuer)) || stripMd(l).length < 8;
   // פריט-רשימה ממוספר/בוליט (1. / 2) / - / •) הוא כמעט תמיד דרישה — גם בלי מילת-רמז.
   const isEnumerated = (l) => /^\s*(\d+[.)]|[-–—•*])\s+\S/.test(l);
+  // כותרת-סעיף (למשל "תנאי סף להשתתפות:", "דרישות המכרז:") — תווית, לא דרישה בפני עצמה
+  const isHeader = (l) => { const s = stripMd(l); return /[:：]\s*$/.test(s) && !isEnumerated(l) && s.replace(/[:：]\s*$/, '').split(/\s+/).length <= 4; };
   let lineReqs = lines
-    .filter((l) => !l.startsWith('|') && !isMeta(l) && (isEnumerated(l) || REQ_CUES.some((c) => l.includes(c))))
+    .filter((l) => !l.startsWith('|') && !isMeta(l) && !isHeader(l) && (isEnumerated(l) || REQ_CUES.some((c) => l.includes(c))))
     .map((l) => enrichReq(stripMd(l)));
   if (!tableReqs.length && !lineReqs.length) {
     lineReqs = lines.filter((l) => !l.startsWith('|') && !isMeta(l)).map((l) => enrichReq(stripMd(l)));
@@ -361,10 +363,18 @@ export function generateDraft(mapping) {
   const sections = mapping.map((m, i) => {
     const title = `${i + 1} · ${m.requirement}`;
     if (m.hasSource) {
+      // גיוון נוסח — מרוטט לפי אינדקס כדי שסעיפים סמוכים/מאותו מקור לא יֵצאו זהים.
+      // כל וריאנט משתמש אך ורק בשם הפרויקט ובממדיו (מהמיפוי) — אפס-הזיות נשמר.
+      const dims = m.dimensions?.length ? m.dimensions.join(', ') : '';
+      const variants = [
+        `בהתבסס על פרויקט "${m.project}", לחברה ניסיון מוכח ורלוונטי לדרישה זו${dims ? `, המשתקף ב־${dims}` : ''}.`,
+        `החברה מציגה יכולת מוכחת בתחום זה מתוך פרויקט "${m.project}"${dims ? ` — הכולל ${dims}` : ''}.`,
+        `ניסיון החברה נשען על פרויקט "${m.project}"${dims ? `, שבמסגרתו: ${dims}` : ''}.`,
+        `כפי שבא לידי ביטוי בפרויקט "${m.project}"${dims ? ` (${dims})` : ''}, לחברה מענה ישיר לדרישה.`,
+      ];
       return {
         title,
-        body: `בהתבסס על "${m.project}", לחברה ניסיון מוכח בתחום זה${
-          m.dimensions?.length ? `, כולל ${m.dimensions.join(', ')}` : ''}.`,
+        body: variants[i % variants.length],
         confidence: Math.min(95, 70 + (m.dimensions?.length || 0) * 8),
         sourceProject: m.project,
         needsManual: false,
