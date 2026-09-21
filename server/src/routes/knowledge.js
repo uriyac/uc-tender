@@ -33,7 +33,7 @@ const COMPANY_STR = [
   'name', 'legal_entity', 'reg_no', 'address', 'website', 'email',
   'contact_name', 'contact_phone', 'main_domain', 'services',
   'senior_experience_years', 'certified_staff', 'public_sector_experience',
-  'key_person_title', 'avg_turnover', 'notable_clients',
+  'key_person_title', 'avg_turnover', 'classification', 'notable_clients',
 ];
 r.put('/company', (req, res) => {
   const b = req.body || {};

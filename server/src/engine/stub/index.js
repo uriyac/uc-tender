@@ -299,9 +299,22 @@ export function checkThresholds(rawText, company = {}) {
   const clsM = text.match(/סיווג קבלני\s*([א-ת])?-?(\d)?/);
   if (clsM) {
     const req = clsM[0].trim();
+    const reqLetter = clsM[1] || null, reqNum = clsM[2] ? +clsM[2] : null;
     const have = company.classification;
+    let status;
+    if (!have) status = 'unknown';                       // לא הוזן
+    else if (reqNum == null) status = 'met';             // הדרישה בלי דרגה — די בקיום סיווג
+    else {
+      // דרגות סיווג קבלני: אות = ענף, מספר = היקף (1–5, גבוה יותר = רחב יותר). נדרש have>=req.
+      const hm = String(have).match(/([א-ת])?\s*-?\s*(\d)/);
+      const haveLetter = hm && hm[1] ? hm[1] : null;
+      const haveNum = hm && hm[2] ? +hm[2] : null;
+      if (haveNum == null) status = 'unknown';                                    // ערך לא ברור
+      else if (reqLetter && haveLetter && reqLetter !== haveLetter) status = 'gap'; // ענף אחר
+      else status = haveNum >= reqNum ? 'met' : 'gap';                             // השוואת דרגה
+    }
     checks.push({ label: `סיווג קבלני: ${req.replace(/^סיווג קבלני\s*/, '') || 'נדרש'}`,
-      required: req, have: have || 'לא הוזן', status: have ? 'met' : 'unknown' });
+      required: req, have: have || 'לא הוזן', status });
   }
   return { checks };
 }
