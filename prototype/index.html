@@ -567,27 +567,35 @@
       else { on(up);off(pa); drop.classList.remove('hidden'); list.classList.remove('hidden'); textarea.classList.add('hidden'); }
     };
 
+    // בדיקת קובץ בצד-לקוח — סוג + גודל, עם הודעה ברורה
+    const ALLOWED_EXT=['pdf','doc','docx','xls','xlsx','txt'], MAX_MB=50;
+    function fileError(f){ const ext=(f.name.split('.').pop()||'').toLowerCase(); if(!ALLOWED_EXT.includes(ext)) return 'סוג קובץ לא נתמך — נדרש PDF · DOCX · XLSX · TXT.'; if(f.size>MAX_MB*1048576) return `הקובץ גדול מדי (${(f.size/1048576).toFixed(1)}MB) — המקסימום ${MAX_MB}MB.`; return null; }
+    function setFile(f){ if(!f){ selected=null; input.value=''; renderSelected(); return; } const err=fileError(f); if(err){ const hint=document.getElementById('tn-hint'); hint.textContent=err; hint.style.color='#B91C1C'; selected=null; input.value=''; renderSelected(); return; } const hint=document.getElementById('tn-hint'); hint.textContent='הפענוח יפרק את הדרישות וישווה למאגר הידע שלך.'; hint.style.color=''; selected=f; renderSelected(); }
+
     // שליחה: קובץ או טקסט → פענוח בשרת → מסך ניתוח
     window.submitTenderNew=async function(){
       const btn=document.getElementById('tn-submit'), hint=document.getElementById('tn-hint');
       const text=(textarea.value||'').trim();
       if(!selected && !text){ hint.textContent='בחר קובץ מכרז או הדבק טקסט תחילה.'; hint.style.color='#B45309'; return; }
       btn.disabled=true; btn.innerHTML='<span class="spin inline-block">◠</span> מפענח...';
-      hint.style.color=''; hint.textContent='מפרק דרישות ומשווה למאגר...';
+      hint.style.color='';
+      const stages=['קורא את המסמך…','מפרק תנאי סף ודרישות…','משווה למאגר הידע שלך…','מזהה דגלים אדומים…','מכין המלצה…'];
+      let si=0; hint.textContent=stages[0];
+      const timer=setInterval(()=>{ si=Math.min(si+1,stages.length-1); hint.textContent=stages[si]; }, 750);
       try{
         const {tender}=await window.API.submitTender(selected?{file:selected,text}:{text});
         window.currentTenderId=tender.id;
         selected=null; input.value=''; textarea.value=''; renderSelected();
         go('tender-analysis');
       }catch(e){ hint.textContent='הפענוח נכשל: '+e.message; hint.style.color='#B91C1C'; }
-      finally{ btn.disabled=false; btn.innerHTML='✦ פענח מכרז'; }
+      finally{ clearInterval(timer); btn.disabled=false; btn.innerHTML='✦ פענח מכרז'; }
     };
 
     drop.addEventListener('click',()=>input.click());
-    input.addEventListener('change',e=>{selected=e.target.files[0]||null;renderSelected();});
+    input.addEventListener('change',e=>{setFile(e.target.files[0]||null);});
     ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='var(--signal)';drop.style.background='var(--signal-3)';}));
     ['dragleave','dragend'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();reset();}));
-    drop.addEventListener('drop',e=>{e.preventDefault();reset();if(e.dataTransfer&&e.dataTransfer.files.length){selected=e.dataTransfer.files[0];renderSelected();}});
+    drop.addEventListener('drop',e=>{e.preventDefault();reset();if(e.dataTransfer&&e.dataTransfer.files.length){setFile(e.dataTransfer.files[0]);}});
   })();
 
   // ---- מסך ניתוח מכרז (S07) — נטען מהשרת ----
@@ -982,7 +990,7 @@
 
     document.getElementById('dr-toc').innerHTML = secs.map((s,i)=>`<li class="px-2 py-1.5 rounded ${i===0?'font-semibold':'text-black/65 hover:bg-black/5'}" style="${i===0?'background:var(--signal-8);color:var(--signal)':''}">${s.title}</li>`).join('');
 
-    document.getElementById('dr-sections').innerHTML = secs.map(s=>{
+    document.getElementById('dr-sections').innerHTML = secs.length ? secs.map(s=>{
       if(s.needsManual){
         return `<article class="rounded-[8px] border p-6" style="border-color:oklch(0.72 0.16 70 / 0.4);background:oklch(0.72 0.16 70 / 0.05)">
           <div class="flex items-center justify-between mb-3"><h2 class="t-18 font-semibold">${s.title}</h2><span class="inline-flex items-center gap-1.5 t-11 font-semibold px-2 h-6 rounded-full" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">⚠ נדרש השלמה ידנית</span></div>
@@ -998,7 +1006,7 @@
         <p class="t-15 text-black/80 leading-[1.9]">${s.body}</p>
         <div class="mt-3 flex items-center gap-2"><span class="inline-flex items-center gap-1.5 t-11 px-2 h-6 rounded-[3px] border" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${tag}</span></div>
       </article>`;
-    }).join('');
+    }).join('') : `<div class="rounded-[8px] border bg-white card-soft p-8 text-center" style="border-color:var(--hairline)"><div class="text-3xl mb-3">📝</div><h2 class="t-18 font-semibold mb-2">אין עדיין תוכן לטיוטה</h2><p class="t-13 text-black/60 leading-[1.7]" style="max-width:460px;margin:0 auto">לא זוהו דרישות מובנות במכרז זה, כך שאין ממה לבנות סעיפים — והמערכת לעולם לא ממציאה תוכן. הזן מכרז מפורט יותר, או השלם דרישות במסך המיפוי.</p><button onclick="go('tender-analysis')" class="mt-5 t-13 font-semibold text-white px-5 h-10 rounded-[8px]" style="background:var(--signal)">→ חזרה לניתוח המכרז</button></div>`;
 
     document.getElementById('dr-pdf').onclick=()=>window.open(window.API.draftExportUrl(dId,'pdf'),'_blank');
     document.getElementById('dr-word').onclick=()=>window.open(window.API.draftExportUrl(dId,'docx'),'_blank');
