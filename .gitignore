@@ -2,6 +2,10 @@
 node_modules/
 **/node_modules/
 
+# --- תוצרי בנייה (Electron installer / unpacked) ---
+desktop/dist/
+dist/
+
 # --- סודות (אסור לעלות!) ---
 .env
 **/.env
