@@ -254,7 +254,12 @@ r.post('/:id/packet', upload.single('file'), async (req, res) => {
   const fname = `packet-${(t.code || 'tender').replace(/[^\w\-]/g, '')}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
-  res.setHeader('X-Packet-Meta', Buffer.from(JSON.stringify(meta.checklistSummary)).toString('base64'));
+  res.setHeader('X-Packet-Meta', Buffer.from(JSON.stringify({
+    ...meta.checklistSummary,
+    acroForm: meta.acroForm,
+    coverage: meta.summary && meta.summary.coverage,
+    missingFields: meta.missingFields || [],
+  })).toString('base64'));
   res.send(Buffer.from(packetBytes));
 });
 

@@ -60,6 +60,7 @@ export async function buildSubmissionPacket(formBuffer, ctx = {}) {
       documents,
       signatures,
       checklistSummary: checklistSummary(documents, signatures),
+      missingFields: mapping.filter((m) => m.status === 'missing').map((m) => ({ label: m.label, key: m.key })),
     },
   };
 }
