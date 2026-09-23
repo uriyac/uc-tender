@@ -231,6 +231,7 @@
     if(name==='knowledge' && window.renderKnowledge) window.renderKnowledge();
     if(name==='review' && window.renderReview) window.renderReview();
     if(name==='dashboard' && window.renderDashboard) window.renderDashboard();
+    if(name==='admin' && window.renderAdmin) window.renderAdmin();
     if(name==='tender-analysis' && window.renderAnalysis) window.renderAnalysis();
     if(name==='draft-mapping' && window.renderMapping) window.renderMapping();
     if(name==='tender-draft' && window.renderDraft) window.renderDraft();
@@ -248,6 +249,8 @@
     const me = await window.API.authMe();
     if(!me){ go('login'); return; }
     window.currentUser = me;
+    if(me.isSuperadmin){ go('admin'); return; }
+    if(me.mustReset){ go('force-reset'); return; }
     try{
       const [comp, kb] = await Promise.all([ window.API.company(null), window.API.knowledge(null) ]);
       const onboarded = (comp && (comp.onboarded || comp.name)) || (kb && kb.counts && kb.counts.projects > 0);
@@ -308,6 +311,123 @@
       }
       location.reload();
     }catch(e){ hint.style.color='#B91C1C'; hint.textContent=(''+e.message).includes('undefined')?'שגיאת התחברות':e.message; btn.disabled=false; }
+  };
+</script>
+
+<!-- ============================= ADMIN (superadmin) ============================= -->
+<section data-screen="admin">
+  <div class="min-h-dvh" style="background:var(--page)">
+    <header class="border-b bg-white" style="border-color:var(--hairline)">
+      <div class="mx-auto max-w-[1100px] px-8 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2.5"><span class="grid place-items-center w-7 h-7 rounded-[6px] text-white font-bold t-13" style="background:var(--signal)">ת</span><span class="t-15 font-semibold">UC TENDER · ניהול מערכת</span></div>
+        <button onclick="adminLogout()" class="t-12 font-semibold text-black/60 hover:text-black">התנתקות</button>
+      </div>
+    </header>
+    <main class="mx-auto max-w-[1100px] px-8 py-10">
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div><div class="t-11 font-semibold uppercase tracking-[0.2em]" style="color:var(--signal)">מנהל מערכת</div><h1 class="mt-2 font-display t-32 font-semibold">ניהול חשבונות</h1></div>
+        <button onclick="adminNewToggle()" class="inline-flex items-center gap-2 text-white t-13 font-semibold px-5 h-11 rounded-[8px]" style="background:var(--signal)">+ צור חשבון לקוח</button>
+      </div>
+      <div id="adm-kpi" class="grid grid-cols-3 gap-4 mb-6"></div>
+      <div id="adm-new" class="hidden mb-6"></div>
+      <div id="adm-list" class="rounded-[8px] border bg-white overflow-hidden" style="border-color:var(--hairline)"></div>
+    </main>
+  </div>
+</section>
+
+<!-- ============================= FORCE PASSWORD RESET ============================= -->
+<section data-screen="force-reset">
+  <div class="min-h-dvh flex items-center justify-center" style="background:var(--navy)">
+    <div class="w-full max-w-[400px] mx-auto px-8">
+      <div class="flex items-center gap-2.5 mb-7 justify-center"><span class="grid place-items-center w-9 h-9 rounded-[8px] text-white font-bold" style="background:var(--signal)">ת</span><span class="t-18 font-semibold tracking-tight text-white">UC TENDER</span></div>
+      <div class="bg-white rounded-[14px] p-7" style="box-shadow:0 20px 60px rgba(0,0,0,.35)">
+        <h1 class="font-display t-24 font-semibold">בחר סיסמה חדשה</h1>
+        <p class="mt-1.5 t-13 text-black/55 mb-6">כניסה ראשונה — יש להחליף את הסיסמה הזמנית לסיסמה קבועה שלך.</p>
+        <div class="space-y-3">
+          <input id="fr-pass" type="password" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="סיסמה חדשה (6+ תווים)" />
+          <input id="fr-pass2" type="password" dir="ltr" class="w-full h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="אימות סיסמה" />
+        </div>
+        <button id="fr-submit" onclick="forceResetSubmit()" class="mt-5 w-full h-11 rounded-[8px] text-white t-13 font-semibold" style="background:var(--signal)">שמור והמשך</button>
+        <div id="fr-hint" class="mt-3 t-12 text-center h-4"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // ---- מנהל-על: ניהול חשבונות ----
+  const admEsc=(v)=>(v==null?'':String(v));
+  function admTempPwBox(email, pw){
+    return `<div class="rounded-[8px] border p-4" style="border-color:oklch(0.62 0.15 155 / 0.5);background:oklch(0.62 0.15 155 / 0.06)">
+      <div class="t-13 font-semibold mb-1.5" style="color:oklch(0.42 0.14 155)">✓ מוכן למסירה ללקוח</div>
+      <div class="t-13 mb-1">אימייל כניסה: <span class="font-mono">${admEsc(email)}</span></div>
+      <div class="t-13 flex items-center gap-2 flex-wrap">סיסמה זמנית: <span class="font-mono font-bold px-2 py-0.5 rounded bg-white border" style="border-color:var(--hairline)">${admEsc(pw)}</span><button onclick="(navigator.clipboard&&navigator.clipboard.writeText('${admEsc(pw)}'))" class="t-11 font-semibold" style="color:var(--signal)">העתק</button></div>
+      <div class="t-11 mt-2" style="color:oklch(0.5 0.14 40)">⚠ לא יוצג שוב. הלקוח יתבקש להחליף את הסיסמה בכניסה הראשונה.</div>
+    </div>`;
+  }
+  async function renderAdmin(){
+    const list=document.getElementById('adm-list'); if(!list) return;
+    let data; try{ data=await window.API.adminAccounts(); }
+    catch(e){ list.innerHTML='<div class="p-6 t-13 text-rose-600">שגיאה בטעינה: '+admEsc(e.message)+'</div>'; return; }
+    const accts=data.accounts||[];
+    const active=accts.filter(a=>a.status==='active').length, susp=accts.filter(a=>a.status==='suspended').length;
+    const kpi=(l,v)=>`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/50">${l}</div><div class="mt-2 font-display t-32 leading-none tabular-nums">${v}</div></div>`;
+    document.getElementById('adm-kpi').innerHTML=kpi('סה״כ חשבונות',accts.length)+kpi('פעילים',active)+kpi('מושהים',susp);
+    const row=(a)=>{ const u=a.usage||{}, suspended=a.status==='suspended';
+      return `<div class="flex items-center gap-4 px-5 py-3.5 border-t first:border-t-0 flex-wrap" style="border-color:var(--hairline-soft)">
+        <div class="flex-1 min-w-[180px]"><div class="t-14 font-semibold truncate">${admEsc(a.name)}</div><div class="t-11 text-black/50">${u.users||0} משתמשים · ${u.tenders||0} מכרזים · ${u.documents||0} מסמכים</div></div>
+        <select onchange="adminSetPlan('${a.id}',this.value)" class="h-8 t-12 border rounded-[6px] px-2 bg-white" style="border-color:var(--hairline)"><option value="free"${a.plan==='free'?' selected':''}>free</option><option value="pro"${a.plan==='pro'?' selected':''}>pro</option></select>
+        <span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full ${suspended?'text-rose-700 bg-rose-50':'text-emerald-700 bg-emerald-50'}">${suspended?'מושהה':'פעיל'}</span>
+        <button onclick="adminToggleStatus('${a.id}','${suspended?'active':'suspended'}')" class="t-12 font-semibold" style="${suspended?'color:var(--signal)':'color:oklch(0.55 0.2 25)'}">${suspended?'הפעל':'השעה'}</button>
+        <button onclick="adminReset('${a.id}')" class="t-12 font-semibold text-black/55 hover:text-black">אפס סיסמה</button>
+      </div>`; };
+    list.innerHTML=accts.length? accts.map(row).join('') : '<div class="p-8 text-center t-13 text-black/50">אין חשבונות עדיין — צור חשבון לקוח ראשון.</div>';
+  }
+  window.renderAdmin=renderAdmin;
+  window.adminNewToggle=function(){
+    const el=document.getElementById('adm-new');
+    if(!el.classList.contains('hidden')){ el.classList.add('hidden'); el.innerHTML=''; return; }
+    el.classList.remove('hidden');
+    el.innerHTML=`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--signal)">
+      <div class="t-15 font-semibold mb-3">חשבון לקוח חדש</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input id="anw-company" class="h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="שם החברה" />
+        <input id="anw-email" type="email" dir="ltr" class="h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="אימייל הכניסה של הלקוח" />
+        <input id="anw-name" class="h-11 px-3 border rounded-[8px] t-13" style="border-color:var(--hairline)" placeholder="שם איש קשר (אופציונלי)" />
+        <select id="anw-plan" class="h-11 px-3 border rounded-[8px] t-13 bg-white" style="border-color:var(--hairline)"><option value="free">free</option><option value="pro">pro</option></select>
+      </div>
+      <div class="mt-3 flex items-center gap-3"><button onclick="adminCreate()" class="text-white t-13 font-semibold px-5 h-10 rounded-[8px]" style="background:var(--signal)">צור חשבון</button><span id="anw-hint" class="t-12"></span></div>
+      <div id="anw-result" class="mt-3"></div>
+    </div>`;
+  };
+  window.adminCreate=async function(){
+    const hint=document.getElementById('anw-hint');
+    const payload={ companyName:document.getElementById('anw-company').value.trim(), ownerEmail:document.getElementById('anw-email').value.trim(), ownerName:document.getElementById('anw-name').value.trim(), plan:document.getElementById('anw-plan').value };
+    if(!payload.companyName||!payload.ownerEmail){ hint.style.color='#B45309'; hint.textContent='נדרשים שם חברה ואימייל.'; return; }
+    hint.style.color=''; hint.textContent='יוצר...';
+    try{ const r=await window.API.adminCreateAccount(payload); hint.textContent='';
+      document.getElementById('anw-result').innerHTML=admTempPwBox(r.owner.email, r.tempPassword);
+      renderAdmin();
+    }catch(e){ hint.style.color='#B91C1C'; hint.textContent=admEsc(e.message); }
+  };
+  window.adminSetPlan=async function(id,plan){ try{ await window.API.adminUpdateAccount(id,{plan}); }catch(e){ document.getElementById('adm-list').insertAdjacentHTML('beforebegin',''); } };
+  window.adminToggleStatus=async function(id,status){ try{ await window.API.adminUpdateAccount(id,{status}); renderAdmin(); }catch(e){} };
+  window.adminReset=async function(id){
+    try{ const r=await window.API.adminResetPassword(id);
+      const el=document.getElementById('adm-new'); el.classList.remove('hidden');
+      el.innerHTML='<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">'+admTempPwBox(r.owner.email, r.tempPassword)+'</div>';
+      window.scrollTo(0,0);
+    }catch(e){}
+  };
+  window.adminLogout=async function(){ try{ await window.API.logout(); }catch(e){} location.reload(); };
+  window.forceResetSubmit=async function(){
+    const p1=document.getElementById('fr-pass').value, p2=document.getElementById('fr-pass2').value;
+    const hint=document.getElementById('fr-hint'), btn=document.getElementById('fr-submit');
+    if(!p1||p1.length<6){ hint.style.color='#B45309'; hint.textContent='סיסמה חייבת לפחות 6 תווים.'; return; }
+    if(p1!==p2){ hint.style.color='#B45309'; hint.textContent='הסיסמאות אינן תואמות.'; return; }
+    btn.disabled=true; hint.style.color=''; hint.textContent='שומר...';
+    try{ await window.API.changePassword(p1); location.reload(); }
+    catch(e){ hint.style.color='#B91C1C'; hint.textContent=admEsc(e.message); btn.disabled=false; }
   };
 </script>
 
@@ -1512,6 +1632,7 @@
 <div id="dev-switcher" style="position:fixed;bottom:12px;left:12px;z-index:99;display:none">
   <div id="scr-panel" class="hidden absolute bottom-11 left-0 bg-white border rounded-[8px] shadow-lg p-2 flex flex-wrap gap-1 w-[300px]" style="border-color:var(--hairline)">
     <span class="t-10 font-semibold text-black/40 w-full px-1">מסכים (פרוטוטייפ):</span>
+    <button onclick="go('admin')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">אדמין</button>
     <button onclick="go('welcome')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">Welcome</button>
     <button onclick="go('upload')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">העלאה</button>
     <button onclick="go('review')" class="t-10 px-2 h-7 rounded border hover:bg-black/5">סקירה</button>

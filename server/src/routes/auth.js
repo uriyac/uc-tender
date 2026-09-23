@@ -69,6 +69,18 @@ r.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/auth/change-password — החלפת סיסמה למשתמש מחובר (גם first-login של must_reset)
+r.post('/change-password', (req, res) => {
+  const u = currentUser(req);
+  if (!u) return res.status(401).json({ error: 'נדרשת התחברות' });
+  const { newPassword } = req.body || {};
+  if (!newPassword || String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'סיסמה חייבת לפחות 6 תווים' });
+  }
+  store.updateUser(u.id, { password: String(newPassword) }); // updateUser מנקה must_reset
+  res.json({ ok: true });
+});
+
 // GET /api/auth/me — זהות נוכחית (או 401)
 r.get('/me', (req, res) => {
   const u = currentUser(req);

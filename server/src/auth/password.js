@@ -16,3 +16,12 @@ export function verifyPassword(password, hash, salt) {
   const expected = Buffer.from(hash, 'hex');
   return candidate.length === expected.length && timingSafeEqual(candidate, expected);
 }
+
+// סיסמה זמנית קריאה למסירה ללקוח (בלי תווים מבלבלים 0/O/1/l/I). ~10 תווים.
+export function genTempPassword(len = 10) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}

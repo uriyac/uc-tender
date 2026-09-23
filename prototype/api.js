@@ -35,6 +35,15 @@ const API = {
   login(email, password) { return this._send('POST', '/api/auth/login', { email, password }); },
   register(payload) { return this._send('POST', '/api/auth/register', payload); },
   logout() { return this._send('POST', '/api/auth/logout'); },
+  changePassword(newPassword) { return this._send('POST', '/api/auth/change-password', { newPassword }); },
+
+  // --- מנהל-על (superadmin) — ניהול חשבונות ---
+  adminAccounts() { return this._send('GET', '/api/admin/accounts'); },
+  adminAccount(id) { return this._send('GET', '/api/admin/accounts/' + id); },
+  adminCreateAccount(payload) { return this._send('POST', '/api/admin/accounts', payload); },
+  adminUpdateAccount(id, patch) { return this._send('PUT', '/api/admin/accounts/' + id, patch); },
+  adminResetPassword(id) { return this._send('POST', '/api/admin/accounts/' + id + '/reset-password'); },
+
   dashboard(fallback) { return this._get('/api/dashboard', fallback); },
   tenders(fallback) { return this._get('/api/tenders', fallback); },
   tender(id, fallback) { return this._get('/api/tenders/' + id, fallback); },
