@@ -15,6 +15,7 @@ import documents from './routes/documents.js';
 import tenders from './routes/tenders.js';
 import drafts from './routes/drafts.js';
 import dashboard from './routes/dashboard.js';
+import learning from './routes/learning.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -44,6 +45,7 @@ app.use('/api/documents', requireAuth, documents);
 app.use('/api/tenders', requireAuth, tenders);
 app.use('/api/drafts', requireAuth, drafts);
 app.use('/api/dashboard', requireAuth, dashboard);
+app.use('/api/learning', requireAuth, learning);
 
 // 404 ל-API (נתיב לא מוכר) — JSON, לא HTML. חייב לבוא אחרי כל ה-routers ולפני הסטטי.
 app.use('/api', (req, res) => res.status(404).json({ error: 'נתיב לא נמצא', path: req.originalUrl }));

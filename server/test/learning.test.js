@@ -2,7 +2,39 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REASON_CODES, isValidReasonCode, reasonLabel, snapshotPrediction, issuerMemory, issuerInsight } from '../src/learning/index.js';
+import { REASON_CODES, isValidReasonCode, reasonLabel, snapshotPrediction, issuerMemory, issuerInsight, reasonDistribution, calibration } from '../src/learning/index.js';
+
+test('reasonDistribution — סופר סיבות הפסד, ממוין מהנפוץ לנדיר', () => {
+  const outcomes = [
+    { result: 'lose', reason_code: 'price' },
+    { result: 'lose', reason_code: 'price' },
+    { result: 'lose', reason_code: 'threshold' },
+    { result: 'win' }, // זכיות לא נספרות
+  ];
+  const d = reasonDistribution(outcomes);
+  assert.equal(d[0].code, 'price');
+  assert.equal(d[0].count, 2);
+  assert.equal(d[0].label, 'מחיר');
+  assert.equal(d.find((x) => x.code === 'threshold').count, 1);
+});
+
+test('calibration — Go/No-Go מול תוצאה, וציון ממוצע זכיות>הפסדים', () => {
+  const outcomes = [
+    { result: 'win', prediction: { go_decision: true, match_score: 80 } },  // GO→win = נכון
+    { result: 'lose', prediction: { go_decision: true, match_score: 62 } }, // GO→lose = שגוי
+    { result: 'lose', prediction: { go_decision: false, match_score: 40 } },// NO-GO→lose = נכון
+    { result: 'pending', prediction: { go_decision: true, match_score: 90 } }, // לא מוכרע — לא נספר
+  ];
+  const c = calibration(outcomes);
+  assert.equal(c.n, 3);
+  assert.equal(c.accuracy, 67); // 2 מתוך 3
+  assert.equal(c.avgScoreWon, 80);
+  assert.equal(c.avgScoreLost, 51); // (62+40)/2=51
+});
+
+test('calibration — ללא נתונים מחזיר n=0', () => {
+  assert.equal(calibration([]).n, 0);
+});
 
 test('reason codes — רשימה סגורה, ולידציה', () => {
   assert.ok(REASON_CODES.length >= 6);

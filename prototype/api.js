@@ -45,6 +45,7 @@ const API = {
   adminResetPassword(id) { return this._send('POST', '/api/admin/accounts/' + id + '/reset-password'); },
 
   dashboard(fallback) { return this._get('/api/dashboard', fallback); },
+  learningStats(fallback) { return this._get('/api/learning', fallback); },
   tenders(fallback) { return this._get('/api/tenders', fallback); },
   tender(id, fallback) { return this._get('/api/tenders/' + id, fallback); },
   knowledge(fallback) { return this._get('/api/knowledge', fallback); },

@@ -58,6 +58,30 @@ export function issuerMemory(tenders = [], outcomes = []) {
   return acc;
 }
 
+// התפלגות סיבות-הפסד (S4): לכל קוד — כמה פעמים. ממויין מהנפוץ לנדיר.
+export function reasonDistribution(outcomes = []) {
+  const d = {};
+  for (const o of outcomes) if (o.result === 'lose' && o.reason_code) d[o.reason_code] = (d[o.reason_code] || 0) + 1;
+  return Object.entries(d)
+    .map(([code, count]) => ({ code, label: reasonLabel(code), count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// כיול ניבוי (S4.3): predicted (go_decision/match_score בזמן הסגירה) מול actual (win/lose).
+// מודד כמה ההמלצה GO/NO-GO צדקה, ואם הציון הממוצע בזכיות גבוה מההפסדים (סימן לכיול תקין).
+export function calibration(outcomes = []) {
+  const decided = outcomes.filter((o) => (o.result === 'win' || o.result === 'lose') && o.prediction && o.prediction.go_decision != null);
+  if (!decided.length) return { n: 0, accuracy: null, avgScoreWon: null, avgScoreLost: null };
+  let correct = 0; const winScores = [], loseScores = [];
+  for (const o of decided) {
+    const predictedGo = !!o.prediction.go_decision, won = o.result === 'win';
+    if (predictedGo === won) correct++; // GO→זכייה או NO-GO→הפסד = ניבוי נכון
+    if (o.prediction.match_score != null) (won ? winScores : loseScores).push(o.prediction.match_score);
+  }
+  const avg = (a) => (a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : null);
+  return { n: decided.length, accuracy: Math.round((correct / decided.length) * 100), avgScoreWon: avg(winScores), avgScoreLost: avg(loseScores) };
+}
+
 // זיכרון למפרסם בודד (לבאנר בהזנת מכרז). דורש סף מינימלי כדי לא "ללמוד" מדגימה אחת.
 export function issuerInsight(issuer, tenders, outcomes, minSubmissions = 2) {
   if (!issuer) return null;

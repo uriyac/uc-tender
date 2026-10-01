@@ -238,6 +238,7 @@
     if(name==='post-submission' && window.psReset) window.psReset();
     if(name==='company-setup' && window.renderCompanySetup) window.renderCompanySetup();
     if(name==='settings' && window.renderSettings) window.renderSettings();
+    if(name==='learning' && window.renderLearning) window.renderLearning();
     if(name==='upload' && window.renderUpload) window.renderUpload();
   }
   window.go=go;
@@ -1288,11 +1289,12 @@
 <!-- ============================= IN-APP PAGES (shell-injected) ============================= -->
 <section data-screen="knowledge"></section>
 <section data-screen="drafts"></section>
+<section data-screen="learning"></section>
 <section data-screen="settings"></section>
 
 <script>
   function shell(active, crumb, inner){
-    const items=[['dashboard','לוח בקרה','▦','1',null],['knowledge','מאגר ידע','▤','2',null],['drafts','טיוטות ואישורים','✎','3','2'],['settings','הגדרות','⚙','4',null]];
+    const items=[['dashboard','לוח בקרה','▦','1',null],['knowledge','מאגר ידע','▤','2',null],['drafts','טיוטות ואישורים','✎','3','2'],['learning','מה למדנו','◴',null,null],['settings','הגדרות','⚙','4',null]];
     const navHtml=items.map(([id,label,ic,key,badge])=>{
       const on=id===active;
       return `<li><a onclick="go('${id}')" class="flex items-center gap-3 px-3 h-11 t-13 cursor-pointer rounded-[8px] ${on?'text-white font-semibold':'text-white/60 hover:text-white hover:bg-white/5'}" style="${on?'background:rgba(255,255,255,.10)':''}"><span class="w-[18px] text-center">${ic}</span><span class="hidden lg:block flex-1">${label}</span>${badge?`<span class="hidden lg:inline-flex items-center justify-center min-w-5 h-5 px-1.5 t-10 font-semibold rounded-full ${on?'bg-white/20 text-white':'bg-white/15 text-white/90'}">${badge}</span>`:''}</a></li>`;
@@ -1392,6 +1394,39 @@
   document.querySelector('[data-screen="knowledge"]').innerHTML = shell('knowledge','מאגר ידע', knowledgeInner);
   document.querySelector('[data-screen="drafts"]').innerHTML = shell('drafts','טיוטות ואישורים', draftsInner);
   document.querySelector('[data-screen="settings"]').innerHTML = shell('settings','הגדרות', settingsInner);
+
+  // ---- מה למדנו (המוט): אינטליגנציה מצטברת מתוצאות אמיתיות ----
+  const learningInner = `
+    <div class="mb-8"><div class="t-11 font-semibold uppercase tracking-[0.2em] mb-2" style="color:var(--signal)">זיכרון שלומד</div><h1 class="font-display t-32 font-semibold">מה למדנו</h1><p class="mt-2 t-13 text-black/60 max-w-[640px]">האינטליגנציה שנצברת מכל הגשה — הבידול שלנו ממתחרים. ככל שתדווח יותר תוצאות, ההמלצות והניבוי מתחדדים.</p></div>
+    <div id="lrn-body"></div>`;
+  document.querySelector('[data-screen="learning"]').innerHTML = shell('learning','מה למדנו', learningInner);
+
+  async function renderLearning(){
+    const el=document.getElementById('lrn-body'); if(!el) return;
+    const d = await window.API.learningStats({ totals:{submissions:0,win:0,lose:0,pending:0,winRate:null}, reasons:[], issuers:[], calibration:{n:0} });
+    const t=d.totals||{}, cal=d.calibration||{}, reasons=d.reasons||[], issuers=d.issuers||[];
+    if(!t.submissions){ el.innerHTML='<div class="rounded-[8px] border bg-white card-soft p-10 text-center" style="border-color:var(--hairline)"><div class="text-3xl mb-3">◴</div><h2 class="t-18 font-semibold mb-2">עוד לא נצברה למידה</h2><p class="t-13 text-black/55" style="max-width:460px;margin:0 auto">דווח על תוצאת הגשה (זכייה/הפסד) במסך "אחרי ההגשה" — וכאן יצטברו אחוז זכייה, סיבות הפסד נפוצות, היסטוריית מפרסמים ודיוק הניבוי של המערכת.</p></div>'; return; }
+    const STAT=(l,v,c)=>`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/50">${l}</div><div class="mt-2 font-display t-32 leading-none tabular-nums" style="${c||''}">${v}</div></div>`;
+    const stats = `<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      ${STAT('אחוז זכייה', t.winRate==null?'—':t.winRate+'%', 'color:var(--signal)')}
+      ${STAT('זכיות', t.win)}${STAT('הפסדים', t.lose)}${STAT('סה״כ הגשות', t.submissions)}</div>`;
+    // כיול ניבוי
+    const calBox = cal && cal.n ? `<div class="rounded-[8px] border bg-white card-soft p-5 mb-8" style="border-color:var(--hairline)">
+      <div class="flex items-baseline justify-between mb-2"><h2 class="t-18 font-semibold">דיוק הניבוי</h2><span class="t-11 text-black/45">מבוסס על ${cal.n} הגשות שהוכרעו</span></div>
+      <div class="flex items-baseline gap-2 mb-3"><span class="font-display t-32 leading-none" style="color:var(--signal)">${cal.accuracy}%</span><span class="t-12 text-black/55">מההמלצות (Go/No-Go) התאמתו לתוצאה</span></div>
+      ${(cal.avgScoreWon!=null||cal.avgScoreLost!=null)?`<div class="t-12 text-black/65">ציון התאמה ממוצע — בזכיות: <b style="color:oklch(0.48 0.14 155)">${cal.avgScoreWon??'—'}%</b> · בהפסדים: <b style="color:oklch(0.55 0.2 25)">${cal.avgScoreLost??'—'}%</b></div>`:''}</div>` : '';
+    // התפלגות סיבות הפסד
+    const maxR = reasons.length ? reasons[0].count : 1;
+    const reasonsBox = reasons.length ? `<div class="rounded-[8px] border bg-white card-soft p-5 mb-8" style="border-color:var(--hairline)">
+      <h2 class="t-18 font-semibold mb-4">סיבות הפסד נפוצות</h2>
+      <div class="space-y-2.5">${reasons.map(r=>`<div class="flex items-center gap-3"><span class="t-12 w-40 shrink-0 text-black/70">${r.label}</span><div class="flex-1 h-2.5 rounded-full overflow-hidden" style="background:var(--signal-8)"><div class="h-full rounded-full" style="width:${Math.round(r.count/maxR*100)}%;background:oklch(0.58 0.22 25)"></div></div><span class="t-12 font-semibold w-5 tabular-nums">${r.count}</span></div>`).join('')}</div></div>` : '';
+    // היסטוריית מפרסמים
+    const issuersBox = issuers.length ? `<div class="rounded-[8px] border bg-white card-soft overflow-hidden" style="border-color:var(--hairline)">
+      <div class="px-5 py-3.5 border-b" style="border-color:var(--hairline)"><h2 class="t-18 font-semibold">היסטוריה לפי מפרסם</h2></div>
+      ${issuers.map(s=>`<div class="flex items-center gap-4 px-5 py-3 border-t first:border-t-0 flex-wrap" style="border-color:var(--hairline-soft)"><div class="flex-1 min-w-[160px]"><div class="t-13 font-semibold truncate">${s.issuer}</div><div class="t-11 text-black/50">${s.submissions} הגשות · ${s.wins} זכיות · ${s.losses} הפסדים</div></div><span class="t-12 font-semibold tabular-nums w-16 text-center">${s.win_rate==null?'—':s.win_rate+'%'}</span>${s.top_loss_reason?`<span class="t-11 px-2 h-6 inline-flex items-center rounded-full" style="background:oklch(0.58 0.22 25 / 0.1);color:oklch(0.5 0.2 25)">${s.top_loss_reason.label}</span>`:'<span class="t-11 text-black/30">—</span>'}</div>`).join('')}</div>` : '';
+    el.innerHTML = stats + calBox + reasonsBox + issuersBox;
+  }
+  window.renderLearning=renderLearning;
 
   // ---- הגדרות — פרופיל החברה מונחה-נתונים ----
   async function renderSettings(){
