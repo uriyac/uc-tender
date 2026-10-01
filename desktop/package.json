@@ -18,6 +18,7 @@
     "appId": "com.uctender.app",
     "productName": "UC TENDER",
     "asar": true,
+    "publish": null,
     "files": [
       "main.cjs",
       "preload.cjs"
