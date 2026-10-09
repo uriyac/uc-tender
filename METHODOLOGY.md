@@ -1,91 +1,93 @@
-# OptiMatch — מתודולוגיית עבודה
+# UC TENDER — מתודולוגיית עבודה
 
-> מסמך זה הוא עצמה של שיטת העבודה. כל קובץ אחר ב-`optimatch-docs/` נגזר ממנו.
+> מסמך זה מגדיר את שיטת העבודה בפרויקט: איפה כל מידע נמצא, ומה מעדכנים אחרי כל שינוי.
 
 ---
 
 ## עקרון מנחה
 
-כשעובדים עם AI builder (Lovable), הסיכון הגדול הוא איבוד הקשר בין פרומפט לפרומפט.
-הפתרון: **כל פרומפט ל-Lovable מתבסס על קובץ MD קיים** — לא על זיכרון.
+הסיכון הגדול בעבודה עם AI הוא איבוד הקשר בין סשן לסשן.
+הפתרון: **כל שינוי מתבסס על קובץ MD קיים, לא על זיכרון**, וכל שינוי שנבנה מתועד חזרה ב-MD.
+
+> עד 2026-07-30 המערכת נבנתה ב-Lovable. היום היא נבנית **מקומית בקוד** עם Claude Code
+> (Node/Express + פרוטוטייפ HTML + אפליקציית Electron). מסמכי תקופת Lovable נמצאים ב-`archive/lovable/`.
 
 ---
 
 ## מבנה התיקיות
 
 ```
-optimatch-docs/
+מערכת מכרזים/
 │
-├── METHODOLOGY.md          ← אתה כאן — הכלל העליון
+├── METHODOLOGY.md              ← אתה כאן: שיטת העבודה
 │
-├── 00-foundation/
-│   ├── PRODUCT.md          ← מה המוצר, למי, למה
-│   └── MVP.md              ← מה בפנים, מה בחוץ, KPIs
+├── 00-foundation/              ← מה המוצר
+│   ├── SYSTEM-ALIGNMENT.md     ← ⭐ מקור האמת (בכל סתירה הוא גובר)
+│   ├── PRODUCT.md              ← מה המוצר, למי, למה
+│   └── MVP.md                  ← מה בפנים, מה בחוץ, KPIs
 │
-├── 01-research/
-│   └── *.docx              ← מסמכי מחקר שוק ותחרות (MRD, השוואת פלטפורמות)
+├── 01-research/                ← מחקר שוק ותחרות (BIDO, שחקנים גלובליים)
+├── 02-ux/                      ← PERSONAS · UX-FLOWS · SCREENS
 │
-├── 02-ux/
-│   ├── PERSONAS.md         ← 3 פרסונות עם goals + frustrations
-│   ├── UX-FLOWS.md         ← מסעות משתמש (actor → action → outcome)
-│   └── SCREENS.md          ← inventory של כל מסך + מה בו
+├── 03-build/                   ← תוכניות ומצב הבנייה
+│   ├── PRODUCT-V1.md           ← Definition of Done ל-v1.0 (דסקטופ on-prem)
+│   ├── EXECUTION-PLAN.md       ← שלבי הביצוע S0–S7 + סטטוס
+│   ├── PRODUCT-REVIEW.md       ← ממצאי סיור המוצר + סדר עדיפויות לשיפור
+│   ├── ROADMAP.md              ← MVP / Phase 2 / Phase 3
+│   ├── WORK-PLAN.md            ← אסטרטגיה מול bido.ai
+│   ├── ENGINE-PLAN.md          ← בניית המנוע (שלבים 0–5)
+│   ├── FLEXIBILITY-CAPABILITY.md · S4-LEARNING-LOOP.md · SHARED-LEARNING-SCHEMA.md
+│   └── STRATEGY-VS-COMPETITORS.md
 │
-├── 03-build/
-│   ├── BACKLOG.md          ← רשימת פרומפטים מסודרת לפי עדיפות
-│   ├── ROADMAP.md          ← מיפוי פיצ'רים ל-MVP/Phase 2/3
-│   └── ENGINE-PLAN.md      ← תוכנית בניית המנוע (שלבים 0-5)
+├── 04-protocol/
+│   └── CHANGELOG.md            ← מה נבנה, מתי, ואיך אומת
 │
-└── 04-protocol/
-    ├── KNOWLEDGE.md        ← ← ← זה נכנס ל-Lovable Project Knowledge
-    ├── PROMPT-GUIDE.md     ← איך כותבים פרומפט טוב ל-Lovable
-    └── CHANGELOG.md        ← מה נבנה, מתי, ומה השתנה
+├── server/                     ← backend (Node/Express) + בדיקות (`npm test`)
+├── prototype/                  ← הממשק (index.html + api.js)
+├── desktop/                    ← אריזת Electron
+├── test-data/                  ← חברה פיקטיבית לבדיקות
+├── .claude/skills/             ← סקילים של הפרויקט (tender-dev, phase5-claude-engine)
+└── archive/lovable/            ← היסטוריה, לא בשימוש
 ```
 
 ---
 
-## הפרקים — סדר וסטטוס
+## לפני כל שינוי
 
-| # | פרק | תוצר | סטטוס |
-|---|-----|-------|--------|
-| 0 | Product Foundation | `PRODUCT.md`, `MVP.md` | ✅ הושלם |
-| 1 | Research & Insights | `RESEARCH.md` | ✅ הושלם |
-| 2 | UX Architecture | `PERSONAS.md`, `UX-FLOWS.md`, `SCREENS.md` | 🔄 בעבודה |
-| 3 | Build Plan | `BACKLOG.md`, `DATA.md` | ⏳ ממתין |
-| 4 | Lovable Protocol | `KNOWLEDGE.md`, `PROMPT-GUIDE.md`, `CHANGELOG.md` | ⏳ ממתין |
+1. **ודא שהסקיל `tender-dev` נטען.** הוא מכיל את מפת הקבצים, חוזה המנוע וכללי אפס-ההזיות.
+2. בדוק ב-`03-build/EXECUTION-PLAN.md` או ב-`PRODUCT-REVIEW.md` שהמשימה בסדר העדיפויות הנכון.
+3. אם המשימה נוגעת במסך, בדוק ב-`02-ux/SCREENS.md` מה המסך צריך להכיל.
 
----
+## אחרי כל שינוי
 
-## כלל עבודה עם Lovable
-
-### לפני כל פרומפט:
-1. בדוק ב-`SCREENS.md` מה המסך הנוכחי צריך להכיל
-2. בדוק ב-`BACKLOG.md` שאתה בסדר הנכון
-3. ודא ש-`KNOWLEDGE.md` מעודכן ב-Lovable Project Knowledge
-
-### אחרי כל build:
-1. עדכן `CHANGELOG.md` — מה נבנה
-2. עדכן סטטוס ב-`BACKLOG.md` — mark as done
-3. אם נוצרו החלטות חדשות — עדכן `PRODUCT.md` או `MVP.md`
-
-### פרומפט טוב = 3 חלקים:
-```
-[הקשר] — מה כבר קיים / מה אנחנו בונים
-[דרישה] — מה בדיוק אני רוצה עכשיו
-[מגבלות] — מה לא לגעת בו
-```
+1. הרץ `cd server && npm test`. כל הבדיקות חייבות לעבור.
+2. אמת בממשק החי (שרת מקומי + דפדפן) כשהשינוי נראה למשתמש.
+3. עדכן את `04-protocol/CHANGELOG.md`: מה נבנה, מה אומת, כמה בדיקות עוברות.
+4. עדכן סטטוס במסמך התוכנית הרלוונטי (`EXECUTION-PLAN` / `PRODUCT-REVIEW` / `PRODUCT-V1`).
+5. אם התקבלה החלטה חדשה, עדכן את `00-foundation/SYSTEM-ALIGNMENT.md`.
+6. שמור ב-Git (commit) עם הודעה שמתארת את השינוי.
 
 ---
 
-## עדכון מסמכים — מתי?
+## עדכון מסמכים: מתי?
 
 | מה קרה | מה לעדכן |
 |---------|-----------|
-| החלטת שינוי MVP | `MVP.md` |
-| insight חדש ממשתמש | `PERSONAS.md` + `RESEARCH.md` |
-| מסך חדש התווסף | `SCREENS.md` + `BACKLOG.md` |
-| build הושלם ב-Lovable | `CHANGELOG.md` |
-| השתנה הקשר הפרויקט | `KNOWLEDGE.md` → עדכן ב-Lovable |
+| נבנה או תוקן משהו | `CHANGELOG.md` + סטטוס בתוכנית הרלוונטית |
+| החלטת מוצר / שינוי היקף | `SYSTEM-ALIGNMENT.md` (+ `MVP.md` / `ROADMAP.md`) |
+| insight חדש ממשתמש או מחקר | `PERSONAS.md` / קובץ ב-`01-research/` |
+| מסך חדש | `SCREENS.md` |
+| שינוי בארכיטקטורה או בחוזה המנוע | `.claude/skills/tender-dev/SKILL.md` |
 
 ---
 
-*גרסה: 1.0 | עודכן: 2026-07-20*
+## כלים
+
+- **Claude Code + סקיל `tender-dev`**: כל עבודת הקוד.
+- **gstack** (מותקן גלובלית): `/qa` לבדיקת הממשק בדפדפן, `/review` לבדיקת קוד לפני commit,
+  `/investigate` לאיתור תקלות, `/plan-eng-review` לפני פיצ'ר גדול.
+  ⚠️ `/ship` ו-`/land-and-deploy` מעלים ל-GitHub. להשתמש רק בכוונה.
+
+---
+
+*גרסה: 2.0 | עודכן: 2026-10-06 | גרסה 1.0 (תקופת Lovable) מ-2026-07-20*

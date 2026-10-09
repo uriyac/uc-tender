@@ -11,7 +11,7 @@ description: Development guide for the "UC TENDER" (smart tender-management) pro
 
 Primary persona: VP Business Development at a mid-large Israeli company. Language: **Hebrew, RTL**.
 
-> This project used to be built through Lovable. **It is now built locally** (Node backend + a single HTML prototype). Ignore any Lovable-era instructions — we edit code directly.
+> This project used to be built through Lovable. **It is now built locally** (Node backend + a single HTML prototype, packaged as an Electron desktop app). Lovable-era docs live in `archive/lovable/` — ignore them.
 
 ## Architecture — the mental model
 
@@ -19,15 +19,21 @@ Primary persona: VP Business Development at a mid-large Israeli company. Languag
 prototype/index.html   ← the whole front-end (one file, multiple <section data-screen> screens)
 prototype/api.js       ← the ONLY fetch layer to the backend (with local fallback)
 server/                ← thin Node/Express backend
-  src/index.js         ← Express app: serves /prototype + mounts /api/*
-  src/data/            ← store.js (JSON repository) + schema.js (seed)
-  src/engine/          ← THE ENGINE: index.js factory → stub/ | claude/
-  src/lib/extractText.js ← file→text (deterministic, shared by all engines)
-  src/routes/          ← knowledge.js documents.js tenders.js drafts.js
+  src/index.js         ← Express app: serves /prototype + mounts /api/* (auth-gated)
+  src/config.js        ← central config, loads .env, engineStatus()
+  src/data/            ← store.js (SQLite via WASM, multi-tenant by account_id) + schema.js (seed)
+  src/auth/            ← password hashing + requireAuth / requireSuperadmin middleware
+  src/engine/          ← THE ENGINE: index.js factory → stub/ | claude/ ; guardrail.js (zero-hallucination)
+  src/flex/tailor.js   ← tailoring layer (asset → tender fit, stretch tiers)
+  src/learning/        ← win/loss outcomes, reason codes, issuer memory, calibration
+  src/packet/          ← submission packet: AcroForm fields → mapping → fill → checklists → one PDF
+  src/lib/             ← extractText.js (file→text) · ocr.js + ocr-worker.mjs (offline Hebrew OCR) · hebtext.js · wasmdb.js · http.js
+  src/routes/          ← auth admin knowledge documents tenders drafts dashboard learning
   src/export/          ← docx.js (real RTL Word) + pdf.js (best-effort PDF)
+desktop/               ← Electron wrapper (main.cjs starts the server on 3517, DB in %APPDATA%/UC TENDER)
 ```
 
-Run it: `cd server && npm start` → open `http://localhost:3000`. Backend changes need a server restart; front-end changes just need a browser reload.
+Run it: `cd server && npm start` → open `http://localhost:3000`. Tests: `cd server && npm test`. Backend changes need a server restart; front-end changes just need a browser reload.
 
 ## Task → which files you touch
 
@@ -45,7 +51,7 @@ Run it: `cd server && npm start` → open `http://localhost:3000`. Backend chang
 
 ## The engine contract — never break it
 
-The engine is **5 pure functions** behind a factory (`engine()` picks `stub` or `claude` by the `ENGINE` env var). The front-end and routes talk ONLY to this contract, so swapping `ENGINE=stub` → `ENGINE=claude` needs zero changes elsewhere.
+The engine is **9 functions** behind a factory (`engine()` picks `stub` or `claude` by the `ENGINE` env var). The authoritative contract is the header comment of `server/src/engine/index.js`; the core "smart" five are shown below (the others: `parseDocument`, `classifyDocument`, `checkThresholds`, `checkRedFlags`). The front-end and routes talk ONLY to this contract, so swapping `ENGINE=stub` → `ENGINE=claude` needs zero changes elsewhere.
 
 ```
 extractKnowledge(rawText, {kind,filename}) → { projects[], certifications[] }
@@ -55,6 +61,7 @@ buildMapping(requirements, kb)             → [{ requirement, project, dimensio
 generateDraft(mapping)                     → { sections:[{title,body,confidence,sourceProject,needsManual}] }
 ```
 
+- **Go/No-Go is NOT an engine output.** It's the Eligibility Gate in `server/src/qualification/index.js` — a pure function over threshold checks + requirement statuses (`PASS / CONDITIONAL / HOLD / FAIL`). Never derive the recommendation from `matchScore`, never let an LLM set `met` on a mandatory requirement, and never mark a threshold `met` without a deterministic comparison. Each `checkThresholds` item carries `topic` and `evidence` (`'declared'` = from the profile → counts as `met_claimed`); `unknown_side:'tender'` when the tender itself doesn't define the threshold.
 - Raw text extraction (`lib/extractText.js`) is **not** part of the engine — it's deterministic file parsing shared by every engine. Only the 5 "smart" functions are swappable.
 - When you add capability, extend the **contract** and implement it in BOTH `stub/` and `claude/`. Never let a route call an engine-specific detail.
 
@@ -78,15 +85,16 @@ generateDraft(mapping)                     → { sections:[{title,body,confidenc
 
 - Routes are thin: validate input → call `engine()` / `store` → return JSON. No business logic in the front-end.
 - Multer uses `memoryStorage`; it decodes filenames as latin1 — convert with `Buffer.from(name,'latin1').toString('utf8')`.
-- The store (`data/store.js`) is a JSON-file repository behind a generic API (`all/find/insert/update/remove`, plus `knowledge()`/`company()`). Swappable for SQLite/Postgres without touching routes.
-- Seed data lives in `data/schema.js`. **Reset state** by deleting `server/src/data/db.json` and restarting.
+- The store (`data/store.js`) is a repository over SQLite (`node-sqlite3-wasm` via `lib/wasmdb.js` — no native build). Business data is always accessed through the account-scoped accessor (`store.for(accountId)`) — never bypass it; `test/isolation.test.js` guards this.
+- Seed data lives in `data/schema.js`. **Reset state** by deleting `server/src/data/app.sqlite` and restarting. A dated backup is written to `data/backups/` on every server start.
 
 ## Dev gotchas (these have bitten us)
 
 - **Hebrew + curl in Git Bash is corrupted** — the shell mangles Hebrew args. **Test Hebrew flows in the browser** (via `window.API…` in the console), not curl. Server-side string literals are fine.
 - **Port 3000 stuck (EADDRINUSE):** `Get-NetTCPConnection -LocalPort 3000 -State Listen | %{ Stop-Process -Id $_.OwningProcess -Force }` (PowerShell).
 - **PDF Hebrew is best-effort** (no full BiDi engine). **DOCX is the correct export for Hebrew** — prefer it.
-- After ANY backend change, restart the server (`npm start`) — the JSON store is cached in memory.
+- After ANY backend change, restart the server (`npm start`).
+- Tests run with `--test-concurrency=1` — the file-based SQLite locks under parallel runs.
 - Always verify a change **end-to-end in the browser**, not just with a unit call.
 
 ## Out of scope
@@ -95,11 +103,12 @@ Tender radar / discovery ("איתור מכרזים"), auto-submission to governm
 
 ## After every change
 
-1. Verify end-to-end in the browser.
-2. Update `04-protocol/CHANGELOG.md` (what changed, dated).
-3. Update statuses in `03-build/BACKLOG.md` and `03-build/ENGINE-PLAN.md` if a phase/item moved.
-4. If a decision changed the product, reflect it in the SSoT `00-foundation/SYSTEM-ALIGNMENT.md`.
+1. Run `cd server && npm test` — all green.
+2. Verify end-to-end in the browser.
+3. Update `04-protocol/CHANGELOG.md` (what changed, dated, test count).
+4. Update statuses in `03-build/EXECUTION-PLAN.md` / `PRODUCT-REVIEW.md` / `PRODUCT-V1.md` if an item moved.
+5. If a decision changed the product, reflect it in the SSoT `00-foundation/SYSTEM-ALIGNMENT.md`.
 
 ## Where we are
 
-Engine plan: `03-build/ENGINE-PLAN.md`. Phases 0–4 are **done** — the full journey (upload → knowledge → tender → analysis → mapping → draft → download → learning) works on real data with the `stub` engine. **Phase 5 is the only thing left: inject the real Claude engine** by filling `server/src/engine/claude/*` against the contract above and switching `ENGINE=claude` — no front-end or route changes. See the `phase5-claude-engine` skill when you start it.
+v1.0 core is **done** (see `03-build/PRODUCT-V1.md`): onboarding, knowledge base, tender intake with offline OCR, analysis (thresholds, red flags, tailoring), mapping, draft + Word/PDF export, submission packet, learning loop with calibration, multi-tenant auth, superadmin console, Electron desktop app. Everything runs on the `stub` engine. The `claude` engine is already implemented (`server/src/engine/claude/`) — **it only needs `ANTHROPIC_API_KEY` + `ENGINE=claude` in `.env`**; then run `server/tools/measure.mjs` before/after. See the `phase5-claude-engine` skill. Open polish items are tracked in `03-build/PRODUCT-REVIEW.md`.

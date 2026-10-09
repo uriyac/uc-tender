@@ -1,6 +1,29 @@
 # CHANGELOG.md — מה נבנה ומתי
 
-> עדכן אחרי כל build ב-Lovable.
+> עדכן אחרי כל שינוי שנבנה ואומת (ראה `METHODOLOGY.md`). הרשומות מ-יולי 2026 מתעדות את תקופת Lovable.
+
+---
+
+## [2026-10-07] — שער כשירות (Eligibility Gate) + תיקוני false Met — key-free
+
+### רקע
+מחקר השוק (`03-build/RESEARCH-LEARNINGS.md`, `03-build/CLARIFICATION-ENGINE.md`) הראה שציון-התאמה אחד אינו יכול להחליט Go/No-Go: תנאי-סף אחד פוסל גם ב-95%. הכיול מ-2026-10-01 כבר הוכיח שה-`match_score` לא מנבא (73% בהפסדים ≥ 67% בזכיות). בנוסף נמצאו בקוד מקומות שבהם המערכת סימנה "עומד" בלי השוואה (false Met) — הסיכון החמור ביותר במכרז.
+
+### נבנה
+- ✅ **`server/src/qualification/index.js` (חדש):** שער מחושב `PASS / CONDITIONAL / HOLD / FAIL` מסטטוסי תנאי-הסף — לא מהמנוע ולא מהציון. 6 סטטוסים (`met_verified · met_claimed · not_met · unknown_company · unknown_tender · needs_clarification`). אין מעבר אוטומטי ל-Met; הצהרת פרופיל/השלמה ידנית = `met_claimed` (לכל היותר CONDITIONAL). לא זוהו תנאי-סף → HOLD. עוזרים משותפים: `parseMoney`, `requiredTurnover`, `compareClassification`, `parseDate`, `certExpiryChecks`.
+- ✅ **תיקוני false Met (stub + claude):** מחזור — משווה סכום נדרש מול מוצהר (קודם: met אם השדה לא ריק); סכום לא מוגדר במכרז → unknown מצד המכרז. עובדים מוסמכים — משווה למספר הנדרש (קודם: >0). סיווג קבלני ב-claude — השוואה סדרתית (קודם: met אם קיים). דרישת חובה ב-stub `analyzeMatch` — נדרשים ≥2 מושגים משותפים. claude `analyzeMatch` — תנאי-סף רק בעדות ישירה, בלי גמישות סמוכה.
+- ✅ **תוקף אישורים מול מועד ההגשה:** `valid_until` נבדק לראשונה; אישור שפג ומוזכר במכרז = פער בתנאי-סף, אחרת אזהרה.
+- ✅ **Recall:** תקרת הדרישות ב-stub 12→80; `raw_text` 20K→500K (מכרזים ארוכים נקטעו).
+- ✅ **Routes:** `gate` נשמר על המכרז בהזנה ומחושב מחדש בכל ניתוח; `/analysis` מחזיר `gate`, `requirement_statuses`, `expiry_warnings`; `/mapping` מחזיר `claimed`. כל בדיקת-סף נושאת `topic` + `evidence:'declared'`.
+- ✅ **למידה:** `snapshotPrediction` נועל את ה-gate; `go_decision` נגזר ממנו (HOLD = null — לא נספר בכיול). מכרזים ישנים בלי gate — נפילה לסף 60.
+- ✅ **חזית:** כרטיס ההמלצה = שער הכשירות (סטטוס + סיבה + 3 חוסמים עם פעולה). הציון מוצג כ"כיסוי" ומאופר כשהשער חסום. תנאי-סף: "(מוצהר)" ו"לא מוגדר במכרז". באנר "הזדמנות" מוסתר ב-FAIL. השלמה ידנית: "טופל · מוצהר — ממתין לראיה".
+- ✅ **בדיקות:** `test/qualification-gate.test.js` (20). **92/92 ירוק.** `tools/measure.mjs` 15/15.
+
+### אומת e2e (שרת מבודד, DB זמני)
+אותו מכרז, ציון 60%: מחזור ₪8M מול ₪10M → **FAIL** (קודם: "מומלץ לגשת"). אחרי עדכון ל-12M → **CONDITIONAL** (כל הסף מוצהר). מכרז שלא מגדיר סכום מחזור → **HOLD**. אומת בממשק בדפדפן.
+
+### פתוח
+PASS אינו בר-השגה עדיין: אין ראיה מאומתת מול כלל — דורש Fact Atoms (P1). הבא: Clarification Engine v1 (שאלות פנימיות שמעדכנות את השער) — `03-build/CLARIFICATION-ENGINE.md` §8.
 
 ---
 

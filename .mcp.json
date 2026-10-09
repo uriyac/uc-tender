@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "notebooklm": {
+      "type": "stdio",
+      "command": "C:\\Users\\uriya\\.local\\bin\\notebooklm-mcp.exe",
+      "args": ["--transport", "stdio", "--log-level", "WARNING"]
+    }
+  }
+}
