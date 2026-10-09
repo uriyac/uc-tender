@@ -11,6 +11,7 @@
 //   שלא הומצאה שום עובדה קשיחה. גמישות = מיסגור-מחדש, לא ניפוח.
 
 import { extract } from './provider.js';
+import { parseMoney, formatMoney, compareClassification } from '../../qualification/index.js';
 
 // ---------- 1) פענוח מסמך → טקסט ----------
 // חילוץ הטקסט עצמו נעשה ב-lib/extractText.js (דטרמיניסטי, משותף). כאן passthrough.
@@ -139,6 +140,7 @@ export async function checkThresholds(rawText, company = {}) {
     system: 'אתה מחלץ תנאי-סף כמותיים ממכרז ציבורי. חלץ אך ורק מה שמופיע בטקסט. החזר JSON בלבד.',
     instruction: 'חלץ תנאי-סף: שנות ניסיון נדרשות (מספר או null), האם נדרש ניסיון עם גופים ציבוריים ' +
       '(true/false), מספר עובדים מוסמכים נדרש (מספר או null), האם נדרש מחזור כספי מינימלי (true/false), ' +
+      'סכום המחזור המינימלי בשקלים כמספר (או null אם הסכום אינו מצוין במפורש — אל תנחש), ' +
       'סיווג קבלני נדרש (הטקסט המדויק, למשל "ג-3", או null).',
     dataLabel: 'מסמך המכרז',
     data: rawText,
@@ -150,36 +152,45 @@ export async function checkThresholds(rawText, company = {}) {
         public_sector_required: { type: 'boolean' },
         certified_staff_required: { type: ['integer', 'null'] },
         turnover_required: { type: 'boolean' },
+        turnover_amount_ils: { type: ['number', 'null'] },
         classification_required: { type: ['string', 'null'] },
       },
-      required: ['years_required', 'public_sector_required', 'certified_staff_required', 'turnover_required', 'classification_required'],
+      required: ['years_required', 'public_sector_required', 'certified_staff_required', 'turnover_required', 'turnover_amount_ils', 'classification_required'],
     },
   });
+  // ההשוואה דטרמיניסטית בקוד, כמו ב-stub. evidence='declared' — הנתון מפרופיל (הצהרה).
   const num = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+  const D = { evidence: 'declared' };
   const checks = [];
   if (out.years_required != null) {
     const have = num(company.senior_experience_years);
     checks.push({ label: `ניסיון: ${out.years_required}+ שנים`, required: `${out.years_required} שנים`,
-      have: have != null ? `${have} שנים` : 'לא הוזן', status: have == null ? 'unknown' : (have >= out.years_required ? 'met' : 'gap') });
+      have: have != null ? `${have} שנים` : 'לא הוזן', status: have == null ? 'unknown' : (have >= out.years_required ? 'met' : 'gap'), topic: 'years', ...D });
   }
   if (out.public_sector_required) {
     const have = company.public_sector_experience;
     checks.push({ label: 'ניסיון עם גופים ציבוריים', required: 'נדרש', have: have || 'לא הוזן',
-      status: have === 'כן' ? 'met' : (have === 'לא' ? 'gap' : 'unknown') });
+      status: have === 'כן' ? 'met' : (have === 'לא' ? 'gap' : 'unknown'), topic: 'public', ...D });
   }
   if (out.certified_staff_required != null) {
     const have = num(company.certified_staff);
     checks.push({ label: `עובדים מוסמכים: ${out.certified_staff_required}+`, required: `${out.certified_staff_required}`,
-      have: have != null ? `${have}` : 'לא הוזן', status: have == null ? 'unknown' : (have >= out.certified_staff_required ? 'met' : 'gap') });
+      have: have != null ? `${have}` : 'לא הוזן', status: have == null ? 'unknown' : (have >= out.certified_staff_required ? 'met' : 'gap'), topic: 'staff', ...D });
   }
   if (out.turnover_required) {
-    checks.push({ label: 'מחזור כספי מינימלי', required: 'נדרש', have: company.avg_turnover || 'לא הוזן',
-      status: company.avg_turnover ? 'met' : 'unknown' });
+    const req = out.turnover_amount_ils ?? null, have = parseMoney(company.avg_turnover);
+    let status, unknown_side;
+    if (req == null) { status = 'unknown'; unknown_side = 'tender'; }
+    else if (have == null) status = 'unknown';
+    else status = have >= req ? 'met' : 'gap';
+    checks.push({ label: `מחזור כספי${req != null ? `: ${formatMoney(req)}+` : ''}`,
+      required: req != null ? formatMoney(req) : 'סכום לא הוגדר במכרז',
+      have: company.avg_turnover || 'לא הוזן', status, topic: 'turnover', ...D, ...(unknown_side ? { unknown_side } : {}) });
   }
   if (out.classification_required) {
     const have = company.classification;
     checks.push({ label: `סיווג קבלני: ${out.classification_required}`, required: out.classification_required,
-      have: have || 'לא הוזן', status: have ? 'met' : 'unknown' });
+      have: have || 'לא הוזן', status: compareClassification(out.classification_required, have), topic: 'classification', ...D });
   }
   return { checks };
 }
@@ -233,9 +244,11 @@ export async function analyzeMatch(requirements, kb) {
       'שקול "גמישות מכרזית": ניסיון סמוך יכול לענות על דרישה גם בלי חפיפת מילים, כל עוד הוא באמת רלוונטי. ' +
       'אל תמציא יכולות שאין להן עדות במאגר. החזר JSON בלבד.',
     instruction: 'מאגר הידע:\n' + kbLines(kb) + '\n\nדרישות המכרז:\n' +
-      requirements.map((r, i) => `R${i}: ${r.text}`).join('\n') + '\n\n' +
+      requirements.map((r, i) => `R${i}${r.mandatory ? ' [תנאי-סף]' : ''}: ${r.text}`).join('\n') + '\n\n' +
       'לכל דרישה קבע: verdict = met (יש כיסוי ישיר או סמוך) / gap (חסר, ניתן להשלמה) / fail ' +
-      '(אין ולא ניתן למסגר). hint קצר.',
+      '(אין ולא ניתן למסגר). hint קצר. ' +
+      'חשוב: דרישה המסומנת [תנאי-סף] היא met רק אם במאגר יש עדות *ישירה* שעונה עליה במלואה — ' +
+      'בלי גמישות סמוכה ובלי הנחות. אם חסר פרט (היקף, תקופה, כמות) — gap. גמישות סמוכה מותרת רק לדרישות שאינן תנאי-סף.',
     effort: 'high',
     schema: {
       type: 'object', additionalProperties: false,

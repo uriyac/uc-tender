@@ -732,8 +732,11 @@
     const score=data.matchScore ?? t.match_score ?? 0;
     set('an-score',score+'%');
     const ring=document.getElementById('an-ring'); if(ring) ring.setAttribute('stroke-dashoffset', String(Math.round(383*(1-score/100))));
-    const band = score>=75?['התאמה גבוהה','הניסיון שלך רלוונטי מאוד למכרז זה.'] : score>=50?['התאמה בינונית','יש בסיס טוב, אך כמה פערים להשלמה.'] : ['התאמה נמוכה','חסרים כמה מרכיבי ליבה — שקול היטב.'];
-    set('an-score-title',band[0]); set('an-score-sub',band[1]);
+    // הציון = כיסוי הדרישות מהזיכרון הארגוני (כדאיות), לא כשירות. ההחלטה בשער — בכרטיס ההמלצה.
+    const band = score>=75?['כיסוי גבוה','הניסיון שלך רלוונטי מאוד למכרז זה.'] : score>=50?['כיסוי בינוני','יש בסיס טוב, אך כמה פערים להשלמה.'] : ['כיסוי נמוך','חסרים כמה מרכיבי ליבה.'];
+    const gs=data.gate&&data.gate.status, blocked=gs==='FAIL'||gs==='HOLD';
+    set('an-score-title',band[0]); set('an-score-sub',band[1]+(blocked?' הציון אינו קובע כשירות — ראה שער הכשירות.':''));
+    if(ring) ring.setAttribute('stroke', blocked?'rgba(15,30,61,.25)':'var(--signal)'); // אין "ציון מנצח" כשהשער חסום
     const met=data.met||[], gaps=data.gaps||[], fails=data.fails||[], total=met.length+gaps.length+fails.length||1;
     window.currentTenderId = id;
     renderStateBar(met, gaps, fails);   // שורת סיכום דקה (מבט-על)
@@ -757,7 +760,16 @@
     const csFieldFor=(l)=>/גופים ציבוריים/.test(l)?'cs-public':/עובדים מוסמכים/.test(l)?'cs-cert-staff':/מחזור/.test(l)?'cs-turnover':/סיווג/.test(l)?'cs-classification':/ניסיון/.test(l)?'cs-exp-years':'';
     const stColor={met:'oklch(0.62 0.15 155)',gap:'oklch(0.58 0.22 25)',unknown:'var(--amber-signal)'}, stIcon={met:'✓',gap:'✕',unknown:'?'};
     const thEl=document.getElementById('an-thresholds');
-    if(thEl) thEl.innerHTML = checks.length ? `<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-3"><h2 class="t-18 font-semibold">בדיקת תנאי סף</h2><div class="t-11 text-black/50">מוצלב מול פרופיל החברה</div></div><div>${checks.map(c=>`<div class="flex items-center justify-between gap-4 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2 t-13"><span style="color:${stColor[c.status]||'var(--amber-signal)'}">${stIcon[c.status]||'?'}</span><span class="font-medium">${c.label}</span></div>${c.status==='unknown'?`<button onclick="fillProfileField('${csFieldFor(c.label)}')" class="t-12 font-semibold whitespace-nowrap" style="color:var(--signal)">+ הוסף לפרופיל</button>`:`<div class="t-12 ${c.status==='met'?'text-emerald-700':'text-rose-600'}">${c.have}</div>`}</div>`).join('')}</div></div>` : '<div class="rounded-[8px] border bg-white card-soft p-6 t-13 text-black/45 text-center" style="border-color:var(--hairline)">לא זוהו תנאי סף מובנים במכרז זה.</div>';
+    // צד ימין של כל שורה: לא ידוע מצד המכרז → "לא מוגדר במכרז" (אין מה להוסיף לפרופיל);
+    // לא ידוע מצד החברה → "+ הוסף לפרופיל"; עומד על סמך פרופיל → "(מוצהר)" — הצהרה, לא ראיה.
+    const thRight=(c)=>{
+      if(c.status==='unknown'&&c.unknown_side==='tender') return `<div class="t-12 text-black/50 text-left">לא מוגדר במכרז — בדוק בחוברת / שאלת הבהרה</div>`;
+      if(c.status==='unknown') return `<button onclick="fillProfileField('${csFieldFor(c.label)}')" class="t-12 font-semibold whitespace-nowrap" style="color:var(--signal)">+ הוסף לפרופיל</button>`;
+      const decl=c.status==='met'&&c.evidence==='declared'?' <span class="text-black/45">(מוצהר)</span>':'';
+      return `<div class="t-12 ${c.status==='met'?'text-emerald-700':'text-rose-600'}">${esc(c.have)}${decl}</div>`;
+    };
+    const expW=(data.expiry_warnings||[]).map(w=>`<div class="t-12 text-black/55 mt-2">⏳ ${esc(w.label)} — ${esc(w.have)} (לא נדרש במפורש במכרז זה)</div>`).join('');
+    if(thEl) thEl.innerHTML = checks.length ? `<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-3"><h2 class="t-18 font-semibold">בדיקת תנאי סף</h2><div class="t-11 text-black/50">מוצלב מול פרופיל החברה · "מוצהר" = מהפרופיל, טרם הוכח במסמך</div></div><div>${checks.map(c=>`<div class="flex items-center justify-between gap-4 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2 t-13"><span style="color:${stColor[c.status]||'var(--amber-signal)'}">${stIcon[c.status]||'?'}</span><span class="font-medium">${esc(c.label)}</span></div>${thRight(c)}</div>`).join('')}</div>${expW}</div>` : '<div class="rounded-[8px] border bg-white card-soft p-6 t-13 text-black/45 text-center" style="border-color:var(--hairline)">לא זוהו תנאי סף מובנים במכרז זה — יש לעבור על החוברת ידנית.</div>'+expW;
 
     // דגלים אדומים (B10)
     const flags=(data.redFlags&&data.redFlags.flags)||[];
@@ -765,23 +777,42 @@
     const sevTag={high:['גבוה','oklch(0.58 0.22 25)','oklch(0.58 0.22 25 / 0.12)'],medium:['בינוני','var(--amber-signal)','oklch(0.72 0.16 70 / 0.14)'],low:['מידע','rgba(15,30,61,.55)','rgba(15,30,61,.07)']};
     if(rfEl) rfEl.innerHTML = flags.length ? `<div class="rounded-[8px] border p-5" style="border-color:oklch(0.58 0.22 25 / 0.4);background:oklch(0.58 0.22 25 / 0.04)"><div class="flex items-center gap-2 mb-3"><h2 class="t-18 font-semibold" style="color:oklch(0.5 0.2 25)">🚩 דגלים אדומים</h2><span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full" style="background:oklch(0.58 0.22 25 / 0.12);color:oklch(0.5 0.2 25)">${flags.length}</span></div><div class="space-y-3">${flags.map(f=>{const sv=sevTag[f.severity]||sevTag.medium;return `<div class="flex items-start gap-3"><span class="mt-1.5 w-2 h-2 rounded-full shrink-0" style="background:${sv[1]}"></span><div class="flex-1"><div class="flex items-center gap-2"><div class="t-13 font-medium">${esc(f.label)}</div><span class="t-10 font-semibold px-1.5 h-5 inline-flex items-center rounded-full" style="background:${sv[2]};color:${sv[1]}">${sv[0]}</span></div><div class="t-12 text-black/60 mt-0.5">${esc(f.detail)}</div>${f.action?`<div class="t-12 mt-1.5 flex items-start gap-1.5" style="color:oklch(0.45 0.13 155)"><span class="shrink-0">↳ מומלץ:</span><span>${esc(f.action)}</span></div>`:''}</div></div>`;}).join('')}</div></div>` : '<div class="rounded-[8px] border bg-white card-soft p-6 flex items-center justify-center gap-2 t-13 text-black/55" style="border-color:var(--hairline)"><span style="color:oklch(0.62 0.15 155)">✓</span>לא זוהו דגלים אדומים — לא נמצאו מלכודות ידועות במכרז.</div>';
 
-    const reco=document.getElementById('an-reco'), goDecision=score>=60;
-    if(goDecision){
-      reco.style.borderColor='oklch(0.62 0.15 155 / 0.35)'; reco.style.background='oklch(0.62 0.15 155 / 0.06)';
-      reco.innerHTML=`<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:oklch(0.62 0.15 155 / 0.14);color:oklch(0.48 0.14 155)">👍</div><div class="flex-1"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.62 0.15 155 / 0.15);color:oklch(0.42 0.14 155)">המלצת המערכת</span><h3 class="t-24 font-semibold tracking-tight mt-2 mb-1.5">מומלץ לגשת</h3><p class="t-13 text-black/70">עומדים ב-${met.length} מתוך ${total} דרישות. הפערים ניתנים להשלמה.</p></div>`;
-    } else {
-      reco.style.borderColor='oklch(0.72 0.16 70 / 0.4)'; reco.style.background='oklch(0.72 0.16 70 / 0.06)';
-      reco.innerHTML=`<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">🤔</div><div class="flex-1"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.72 0.16 70 / 0.18);color:oklch(0.45 0.12 70)">המלצת המערכת</span><h3 class="t-24 font-semibold tracking-tight mt-2 mb-1.5">לשקול בזהירות</h3><p class="t-13 text-black/70">רק ${met.length} מתוך ${total} דרישות מכוסות. ודא שהפערים ניתנים לסגירה בזמן.</p></div>`;
-    }
+    // המלצה = שער הכשירות (PASS/CONDITIONAL/HOLD/FAIL), מחושב בשרת מסטטוסי תנאי-הסף.
+    // לא נגזרת מהציון: ציון גבוה לא מציל תנאי-סף שלא מתקיים, ואי-ודאות לעולם לא מוצגת כ"לגשת".
+    renderGate(data.gate);
 
     // מוני הטאבים (S2.2) + שמירת הטאב הפעיל בעת רענון (resolveGap וכו')
     anSetCount('an-tc-gap', gaps.length, false);
     anSetCount('an-tc-th', checks.length, false);
     anSetCount('an-tc-rf', flags.length, true);
     anTab(document.querySelector('#an-tabs .an-tab.active')?.dataset.antab || 'overview');
+    window.currentGate = data.gate ? data.gate.status : null;
     renderTailoring(id); // קומת הגמישות (F2) — נטען במקביל
   }
   window.renderAnalysis=renderAnalysis;
+
+  // שער הכשירות — כרטיס ההמלצה. מציג את ההחלטה, הסיבה, ו-3 הדברים הראשונים שחוסמים אותה (עם פעולה).
+  const GATE_UI={
+    PASS:{t:'מומלץ לגשת',i:'✓',c:'oklch(0.48 0.14 155)',bd:'oklch(0.62 0.15 155 / 0.35)',bg:'oklch(0.62 0.15 155 / 0.06)'},
+    CONDITIONAL:{t:'ניתן לגשת — בכפוף לראיות',i:'◐',c:'oklch(0.45 0.13 175)',bd:'oklch(0.6 0.12 175 / 0.35)',bg:'oklch(0.6 0.12 175 / 0.05)'},
+    HOLD:{t:'עצור — חסר מידע להכרעה',i:'?',c:'oklch(0.45 0.12 70)',bd:'oklch(0.72 0.16 70 / 0.45)',bg:'oklch(0.72 0.16 70 / 0.07)'},
+    FAIL:{t:'לא מומלץ לגשת',i:'✕',c:'oklch(0.5 0.2 25)',bd:'oklch(0.58 0.22 25 / 0.4)',bg:'oklch(0.58 0.22 25 / 0.05)'},
+  };
+  const ITEM_ST={not_met:['לא מתקיים','oklch(0.5 0.2 25)'],unknown_company:['חסר מידע','var(--amber-signal)'],unknown_tender:['לא מוגדר במכרז','var(--amber-signal)'],needs_clarification:['ממתין להבהרה','var(--amber-signal)'],met_claimed:['מוצהר — ממתין לראיה','oklch(0.45 0.13 175)']};
+  function renderGate(gate){
+    const reco=document.getElementById('an-reco'); if(!reco) return;
+    if(!gate){ // מכרז דמו/ישן בלי ניתוח כשירות — לא ממציאים החלטה
+      reco.style.borderColor='var(--hairline)'; reco.style.background='#FFFFFF';
+      reco.innerHTML=`<div class="flex-1"><span class="t-10 font-semibold tracking-wide uppercase text-black/45">שער כשירות</span><h3 class="t-18 font-semibold mt-2 mb-1">לא בוצע ניתוח כשירות</h3><p class="t-13 text-black/60">הזן את מסמך המכרז כדי שהמערכת תבדוק את תנאי הסף מול החברה.</p></div>`;
+      return;
+    }
+    const u=GATE_UI[gate.status]||GATE_UI.HOLD;
+    reco.style.borderColor=u.bd; reco.style.background=u.bg;
+    const top=(gate.blocking||[]).slice(0,3).map(b=>{const s=ITEM_ST[b.status]||['',''];return `<li class="py-1.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-start gap-2 t-12"><span class="font-semibold whitespace-nowrap" style="color:${s[1]}">${s[0]}</span><span class="text-black/75">${esc(cleanReq(b.label))}</span></div>${b.action?`<div class="t-11 text-black/50 mt-0.5 pr-1">↳ ${esc(b.action)}</div>`:''}</li>`;}).join('');
+    const more=(gate.blocking||[]).length>3?`<div class="t-11 text-black/45 mt-1">ועוד ${(gate.blocking.length-3)} — ראה טאב "תנאי סף"</div>`:'';
+    reco.innerHTML=`<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 t-18 font-semibold" style="background:${u.bd};color:${u.c}">${u.i}</div><div class="flex-1 min-w-0"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:${u.bd};color:${u.c}">שער כשירות · ${gate.status}</span><h3 class="t-24 font-semibold tracking-tight mt-2 mb-1" style="color:${u.c}">${u.t}</h3><p class="t-13 text-black/70">${esc(gate.reason)}</p>${top?`<ul class="mt-3">${top}</ul>${more}`:''}</div>`;
+  }
+  window.renderGate=renderGate;
 
   // F2 — כרטיסי "התאמה תפורה": לכל דרישה, הנכס המותפר עם מד-מתיחה גלוי.
   async function renderTailoring(id){
@@ -792,7 +823,8 @@
     anSetCount('an-tc-tl', sourced.length, false);
     // F3 — באנר-הזדמנות: מכרז לא-בהתמחות-ישירה שניתן לתפירה (הרחבת מרחב המכרזים)
     const ob=document.getElementById('an-opportunity-banner'), sm=(data&&data.summary)||{};
-    if(ob) ob.innerHTML = (sm.adjacent>=1) ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.68 0.16 45 / 0.35);background:oklch(0.72 0.16 60 / 0.06)"><span class="text-[18px] shrink-0">🎯</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.5 0.16 45)">הזדמנות — גם אם זה לא בדיוק ההתמחות שלך</div><div class="t-12 text-black/65 mt-0.5">${sm.tailored} מהנכסים שלך ניתנים לתפירה למכרז זה, מתוכם <b>${sm.adjacent} התאמות סמוכות</b>. שווה לשקול גישה — ראה טאב "התאמה תפורה".</div></div></div>` : '';
+    // לא מעודדים "לשקול גישה" כשתנאי-סף לא מתקיים — הגמישות לא עוקפת את שער הכשירות.
+    if(ob) ob.innerHTML = (sm.adjacent>=1 && window.currentGate!=='FAIL') ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.68 0.16 45 / 0.35);background:oklch(0.72 0.16 60 / 0.06)"><span class="text-[18px] shrink-0">🎯</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.5 0.16 45)">הזדמנות — גם אם זה לא בדיוק ההתמחות שלך</div><div class="t-12 text-black/65 mt-0.5">${sm.tailored} מהנכסים שלך ניתנים לתפירה למכרז זה, מתוכם <b>${sm.adjacent} התאמות סמוכות</b>. שווה לשקול גישה — ראה טאב "התאמה תפורה".</div></div></div>` : '';
     if(!items.length){ el.innerHTML='<div class="rounded-[8px] border bg-white card-soft p-6 t-13 text-black/45 text-center" style="border-color:var(--hairline)">אין דרישות לתפירה.</div>'; return; }
     // תג-מתיחה: ישיר=ירוק, סמוך=כתום, מרחיב=אזהרה
     const strTag={direct:['התאמה ישירה','oklch(0.42 0.14 155)','oklch(0.62 0.15 155 / 0.12)'],adjacent:['התאמה סמוכה','var(--amber-signal)','oklch(0.72 0.16 70 / 0.14)'],stretch:['⚠ התאמה מרחיבה','oklch(0.5 0.16 40)','oklch(0.68 0.16 45 / 0.14)']};
@@ -878,7 +910,7 @@
   function gapCard(g){
     const id=g.id, text=esc(cleanReq(g.text||g)), hint=esc(g.hint||'אין ממד תואם בזיכרון הארגוני');
     if(g.manualText){
-      return `<div class="rounded-[8px] border p-4 md:p-5" style="border-color:oklch(0.62 0.15 155 / 0.35);background:oklch(0.62 0.15 155 / 0.05)"><div class="flex items-start justify-between gap-4 flex-wrap"><div class="flex-1 min-w-[240px]"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.62 0.15 155 / 0.15);color:oklch(0.42 0.14 155)">✓ טופל</span><div class="t-15 font-medium mt-2 mb-1.5">${text}</div><div class="t-12 text-black/60">התשובה שלך: <span class="italic">"${esc(g.manualText)}"</span></div></div><button onclick="anClearGap('${id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[6px] h-9 px-4 bg-white shrink-0" style="border-color:var(--hairline)">בטל</button></div></div>`;
+      return `<div class="rounded-[8px] border p-4 md:p-5" style="border-color:oklch(0.62 0.15 155 / 0.35);background:oklch(0.62 0.15 155 / 0.05)"><div class="flex items-start justify-between gap-4 flex-wrap"><div class="flex-1 min-w-[240px]"><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:oklch(0.62 0.15 155 / 0.15);color:oklch(0.42 0.14 155)">✓ טופל · מוצהר — ממתין לראיה</span><div class="t-15 font-medium mt-2 mb-1.5">${text}</div><div class="t-12 text-black/60">התשובה שלך: <span class="italic">"${esc(g.manualText)}"</span></div></div><button onclick="anClearGap('${id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[6px] h-9 px-4 bg-white shrink-0" style="border-color:var(--hairline)">בטל</button></div></div>`;
     }
     return `<div class="rounded-[8px] border p-4 md:p-5" style="border-color:oklch(0.72 0.16 70 / 0.35);background:oklch(0.72 0.16 70 / 0.04)">
       <div class="flex items-start justify-between gap-4 flex-wrap">

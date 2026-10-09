@@ -7,6 +7,17 @@ import { extractText } from '../lib/extractText.js';
 import { analyzeForm, buildSubmissionPacket } from '../packet/index.js';
 import { REASON_CODES, isValidReasonCode, snapshotPrediction, issuerInsight } from '../learning/index.js';
 import { tailorRequirements } from '../flex/tailor.js';
+import { requirementStatuses, certExpiryChecks, computeGate } from '../qualification/index.js';
+
+// שער הכשירות: בדיקות-סף (+ תוקף אישורים מול מועד ההגשה) + סטטוסי דרישות → gate מחושב.
+// ההחלטה נגזרת בקוד מהסטטוסים — לא מהמנוע ולא מהציון. ראה qualification/index.js.
+function qualify(store, tender, reqs, analysis, thresholdChecks = []) {
+  const expiry = certExpiryChecks(store.all('certifications'), { deadline: tender.deadline, rawText: tender.raw_text });
+  const checks = [...thresholdChecks, ...expiry.checks];
+  const requirements = requirementStatuses(reqs, analysis, checks);
+  const gate = computeGate({ checks, requirements });
+  return { gate, requirements, checks, expiryWarnings: expiry.warnings };
+}
 
 // בונה את אובייקט הידע לצ׳קליסטים: אישורים, קטגוריות מסמכים, סיווג.
 function knowledgeFor(store) {
@@ -57,11 +68,13 @@ r.post('/', upload.single('file'), async (req, res) => {
   const eng = engine();
   const parsed = await eng.parseTender(text);
   const kb = req.store.knowledge();
-  const [analysis, redFlags] = await Promise.all([
+  const [analysis, redFlags, thresholds] = await Promise.all([
     eng.analyzeMatch(parsed.requirements, kb),
     eng.checkRedFlags(text),
+    eng.checkThresholds(text, req.store.company()),
   ]);
   const flags = redFlags.flags || [];
+  const { gate } = qualify(req.store, { deadline: parsed.deadline, raw_text: text }, parsed.requirements, analysis, thresholds.checks || []);
 
   // שמירת המכרז
   const tender = req.store.insert('tenders', {
@@ -73,6 +86,7 @@ r.post('/', upload.single('file'), async (req, res) => {
     days: parsed.deadline ? daysUntil(parsed.deadline) : 14,
     progress: 0,
     match_score: analysis.matchScore,
+    gate: gate.status, // שער הכשירות — ההחלטה (PASS/CONDITIONAL/HOLD/FAIL); הציון משני
     // סיכון: ספירת דגלים (לכרטיס הדשבורד)
     red_flags: flags.length,
     red_flags_high: flags.filter((f) => f.severity === 'high').length,
@@ -84,7 +98,8 @@ r.post('/', upload.single('file'), async (req, res) => {
     classification: parsed.classification || null,
     min_turnover: parsed.min_turnover || null,
     duration: parsed.duration || null,
-    raw_text: text.slice(0, 20000),
+    // הטקסט המלא — ניתוח-מחדש רץ עליו. (חיתוך ל-20K קטע מכרזים ארוכים ואיבד תנאי-סף.) תקרת-בטיחות בלבד.
+    raw_text: text.slice(0, 500000),
     created_at: new Date().toISOString(),
   });
 
@@ -96,7 +111,7 @@ r.post('/', upload.single('file'), async (req, res) => {
     });
   }
 
-  res.status(201).json({ tender, analysis });
+  res.status(201).json({ tender, analysis, gate });
 });
 
 // GET /api/tenders/:id — פרטי מכרז
@@ -129,7 +144,15 @@ r.get('/:id/analysis', async (req, res) => {
   }));
   // S4.2 — זיכרון-מפרסם: אם התמודדנו מול המפרסם הזה בעבר (מעל הסף), מצרפים תובנה לבאנר.
   const issuer_insight = issuerInsight(t.issuer, req.store.all('tenders'), req.store.all('outcomes'));
-  res.json({ tender: t, ...analysis, thresholds, redFlags, issuer_insight });
+  // שער הכשירות — מחושב מחדש בכל ניתוח (פרופיל/השלמות/אישורים עשויים להשתנות), ונשמר על המכרז
+  // כדי שה-snapshot בעת סגירה יינעל על ההחלטה העדכנית.
+  const q = qualify(req.store, t, reqs, analysis, thresholds.checks || []);
+  if (t.gate !== q.gate.status) req.store.update('tenders', t.id, { gate: q.gate.status });
+  res.json({
+    tender: { ...t, gate: q.gate.status }, ...analysis,
+    thresholds: { checks: q.checks }, redFlags, issuer_insight,
+    gate: q.gate, requirement_statuses: q.requirements, expiry_warnings: q.expiryWarnings,
+  });
 });
 
 // GET /api/tenders/:id/mapping — מיפוי דרישה→מקור, כולל השלמות ידניות
@@ -140,7 +163,8 @@ r.get('/:id/mapping', async (req, res) => {
   const mapping = await buildMerged(req.store, reqs);
   const resolved = mapping.filter((m) => m.resolved).length;
   const coverage = mapping.length ? Math.round((resolved / mapping.length) * 100) : 0;
-  res.json({ tender: t, mapping, coverage, resolved, total: mapping.length });
+  const claimed = mapping.filter((m) => m.claimed).length; // מתוך resolved: הצהרה ידנית בלי מקור
+  res.json({ tender: t, mapping, coverage, resolved, claimed, total: mapping.length });
 });
 
 // POST /api/tenders/:id/requirements/:rid/resolve — השלמה ידנית (טקסט חופשי)
@@ -271,6 +295,8 @@ export async function buildMerged(db, reqs) {
     id: reqs[i].id,
     manualText: reqs[i].manual_text || null,
     resolved: !!(m.hasSource || reqs[i].manual_text),
+    // השלמה ידנית בלבד = הצהרה (Claimed), לא ראיה. נכנסת לטיוטה, אבל לא נספרת כמוכחת.
+    claimed: !m.hasSource && !!reqs[i].manual_text,
   }));
 }
 

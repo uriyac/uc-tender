@@ -4,6 +4,8 @@
 // עיקרון: reason_code מרשימה סגורה (ניתן לצבור התפלגות); הטקסט החופשי הוא "צבע" בלבד
 // ולעולם לא נכנס כעובדה למאגר (אפס-הזיות).
 
+import { goDecisionFromGate } from '../qualification/index.js';
+
 // קטגוריות-סיבה סגורות (בעיקר לכישלון; לזכייה — win_factor אופציונלי מאותה רשימה רלוונטית).
 export const REASON_CODES = [
   { code: 'price', label: 'מחיר' },
@@ -20,11 +22,14 @@ export const reasonLabel = (code) => (REASON_CODES.find((r) => r.code === code) 
 export const isValidReasonCode = (code) => CODES.has(code);
 
 // נעילת ה"ניבוי" בזמן סגירת המכרז — הבסיס לכיול (predicted vs actual).
+// ההחלטה נגזרת משער הכשירות (gate) כשקיים: PASS/CONDITIONAL=GO, FAIL=NO-GO, HOLD=אין החלטה (null —
+// לא נספר בכיול). מכרזים ישנים בלי gate: נפילה לסף-הציון ההיסטורי (score>=60).
 export function snapshotPrediction(tender = {}) {
   const score = tender.match_score;
   return {
     match_score: score ?? null,
-    go_decision: score != null ? score >= 60 : null, // אותו סף כמו החזית
+    gate: tender.gate || null,
+    go_decision: tender.gate ? goDecisionFromGate(tender.gate) : (score != null ? score >= 60 : null),
     red_flags: tender.red_flags || 0,
     red_flags_high: tender.red_flags_high || 0,
   };

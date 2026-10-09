@@ -2,6 +2,8 @@
 // כל פונקציה מחזירה נתונים אמיתיים-בצורתם. בשלבים 1-3 ההיוריסטיקות כאן יתעמקו.
 // ה-Guardrail (אפס-הזיות) נאכף כאן במבנה, כדי ש-Claude יירש אותו בשלב 5.
 
+import { parseMoney, formatMoney, requiredTurnover, compareClassification } from '../../qualification/index.js';
+
 // --- חפיפת מילות-מפתח עם נרמול עברי (בלי מפתח, דטרמיניסטי) ---
 // נרמול: הסרת ניקוד/גרשיים, סופיות→רגילות, והסרת עד 2 תחיליות (ב/ל/ו/ה/מ/ש/כ).
 // מילון נרדפות לתחום: מקבץ מונחים שקולים (ביוב↔שפכים, בקרה↔ניטור↔SCADA).
@@ -207,7 +209,8 @@ export function parseTender(rawText) {
     lineReqs = lines.filter((l) => !l.startsWith('|') && !isMeta(l)).map((l) => enrichReq(stripMd(l)));
   }
   const seen = new Set(tableReqs.map((r) => r.text));
-  const requirements = [...tableReqs, ...lineReqs.filter((r) => !seen.has(r.text))].slice(0, 12);
+  // תקרה רחבה (מכרז ישראלי טיפוסי: 11–40 תנאים). תקרה של 12 הפילה תנאי-סף בשקט — recall קודם.
+  const requirements = [...tableReqs, ...lineReqs.filter((r) => !seen.has(r.text))].slice(0, 80);
 
   // סיכום מובנה (B11): שדות שמכרז ציבורי כמעט תמיד כולל
   const money = /([\d,]+)\s*(מיליון|אלף)?\s*(₪|ש"?ח|שקל)/;
@@ -273,50 +276,49 @@ export function checkRedFlags(rawText) {
 
 // 3b) בדיקת תנאי-סף: הצלבת דרישות המכרז מול פרופיל החברה.
 //     stub: זיהוי דפוסים נפוצים. Claude ישדרג לחילוץ סף מלא בשלב 5.
+//     כל בדיקה: { label, required, have, status: met|gap|unknown, topic, evidence, unknown_side? }.
+//     evidence='declared' — הנתון מפרופיל החברה (הצהרה), לא ממסמך. ראה qualification/index.js.
+//     עיקרון: אין "met" בלי השוואה. סף שהמכרז לא מגדיר → unknown (צד המכרז), לא met.
 export function checkThresholds(rawText, company = {}) {
   const text = rawText || '';
   const checks = [];
   const num = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+  const D = { evidence: 'declared' };
 
   const ym = text.match(/(\d+)\s*שנות\s*ניסיון/);
   if (ym) {
     const req = +ym[1], have = num(company.senior_experience_years);
     checks.push({ label: `ניסיון: ${req}+ שנים`, required: `${req} שנים`, have: have != null ? `${have} שנים` : 'לא הוזן',
-      status: have == null ? 'unknown' : (have >= req ? 'met' : 'gap') });
+      status: have == null ? 'unknown' : (have >= req ? 'met' : 'gap'), topic: 'years', ...D });
   }
   if (/גופים ציבוריים|מגזר ציבורי|רשויות מקומיות|משרד ממשלתי|גוף ציבורי/.test(text)) {
     const have = company.public_sector_experience;
     checks.push({ label: 'ניסיון עם גופים ציבוריים', required: 'נדרש', have: have || 'לא הוזן',
-      status: have === 'כן' ? 'met' : (have === 'לא' ? 'gap' : 'unknown') });
+      status: have === 'כן' ? 'met' : (have === 'לא' ? 'gap' : 'unknown'), topic: 'public', ...D });
   }
   if (/עובדים מוסמכים|רו"?ח|עו"?ד/.test(text)) {
-    const have = num(company.certified_staff);
-    checks.push({ label: 'עובדים מוסמכים (רו״ח/עו״ד)', required: 'נדרש', have: have != null ? `${have}` : 'לא הוזן',
-      status: have != null && have > 0 ? 'met' : 'unknown' });
+    // מספר נדרש אם מצוין ("5 עובדים מוסמכים"); אחרת — לפחות אחד.
+    const rm = text.match(/(\d+)\s*(?:עובדים מוסמכים|רו"?ח|עו"?ד)/);
+    const req = rm ? +rm[1] : 1, have = num(company.certified_staff);
+    checks.push({ label: `עובדים מוסמכים (רו״ח/עו״ד)${rm ? `: ${req}+` : ''}`, required: `${req}`, have: have != null ? `${have}` : 'לא הוזן',
+      status: have == null ? 'unknown' : (have >= req ? 'met' : 'gap'), topic: 'staff', ...D });
   }
   if (/מחזור\s*(כספי|שנתי)?/.test(text)) {
-    checks.push({ label: 'מחזור כספי', required: 'נדרש', have: company.avg_turnover || 'לא הוזן',
-      status: company.avg_turnover ? 'met' : 'unknown' });
+    const req = requiredTurnover(text), have = parseMoney(company.avg_turnover);
+    let status, unknown_side;
+    if (req == null) { status = 'unknown'; unknown_side = 'tender'; } // המכרז לא מגדיר סכום — לא מניחים
+    else if (have == null) status = 'unknown';
+    else status = have >= req ? 'met' : 'gap';
+    checks.push({ label: `מחזור כספי${req != null ? `: ${formatMoney(req)}+` : ''}`,
+      required: req != null ? formatMoney(req) : 'סכום לא הוגדר במכרז',
+      have: company.avg_turnover || 'לא הוזן', status, topic: 'turnover', ...D, ...(unknown_side ? { unknown_side } : {}) });
   }
   const clsM = text.match(/סיווג קבלני\s*([א-ת])?-?(\d)?/);
   if (clsM) {
     const req = clsM[0].trim();
-    const reqLetter = clsM[1] || null, reqNum = clsM[2] ? +clsM[2] : null;
     const have = company.classification;
-    let status;
-    if (!have) status = 'unknown';                       // לא הוזן
-    else if (reqNum == null) status = 'met';             // הדרישה בלי דרגה — די בקיום סיווג
-    else {
-      // דרגות סיווג קבלני: אות = ענף, מספר = היקף (1–5, גבוה יותר = רחב יותר). נדרש have>=req.
-      const hm = String(have).match(/([א-ת])?\s*-?\s*(\d)/);
-      const haveLetter = hm && hm[1] ? hm[1] : null;
-      const haveNum = hm && hm[2] ? +hm[2] : null;
-      if (haveNum == null) status = 'unknown';                                    // ערך לא ברור
-      else if (reqLetter && haveLetter && reqLetter !== haveLetter) status = 'gap'; // ענף אחר
-      else status = haveNum >= reqNum ? 'met' : 'gap';                             // השוואת דרגה
-    }
     checks.push({ label: `סיווג קבלני: ${req.replace(/^סיווג קבלני\s*/, '') || 'נדרש'}`,
-      required: req, have: have || 'לא הוזן', status });
+      required: req, have: have || 'לא הוזן', status: compareClassification(req, have), topic: 'classification', ...D });
   }
   return { checks };
 }
@@ -327,7 +329,8 @@ export function analyzeMatch(requirements, kb) {
     ' ' + kb.certifications.map((c) => c.name).join(' ');
   const met = [], gaps = [];
   for (const r of requirements) {
-    if (overlap(r.text, kbText) >= 1) met.push(r.text);
+    // דרישת חובה: מילה משותפת אחת אינה ראיה — נדרשים לפחות 2 מושגים משותפים (שמרנות מול false Met).
+    if (overlap(r.text, kbText) >= (r.mandatory ? 2 : 1)) met.push(r.text);
     else gaps.push({ id: r.id, text: r.text, hint: 'אין ממד תואם בזיכרון — ניתן להשלים ידנית' });
   }
   const total = requirements.length || 1;
