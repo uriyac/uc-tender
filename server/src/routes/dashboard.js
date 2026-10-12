@@ -1,13 +1,14 @@
 // dashboard.js — אגרגציות ללוח הבקרה הניהולי. הכל מחושב מהנתונים; אפס דמו.
 
 import { AsyncRouter } from '../lib/http.js';
+import { withLiveDays } from '../lib/dates.js';
 
 const r = AsyncRouter();
 const STAGES = ['התאמה', 'טיוטה', 'אישור', 'הגשה'];
 const stageBucket = (s) => (s === 'הוגש' ? 'הגשה' : s);
 
 r.get('/', (req, res) => {
-  const all = req.store.all('tenders');
+  const all = req.store.all('tenders').map((t) => withLiveDays(t)); // ימים חיים, לא ערך קפוא מההעלאה
   const live = all.filter((t) => t.stage !== 'נסגר');
   const outcomes = req.store.all('outcomes');
 

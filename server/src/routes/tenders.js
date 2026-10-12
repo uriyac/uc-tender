@@ -10,6 +10,8 @@ import { tailorRequirements } from '../flex/tailor.js';
 import { kbForClaims, cleanActivities } from '../flex/activities.js';
 import { requirementStatuses, certExpiryChecks, computeGate, applyEvidence } from '../qualification/index.js';
 import { locateAll } from '../lib/sourceSpan.js';
+import { thresholdScope } from '../lib/tenderSections.js';
+import { daysUntil, withLiveDays } from '../lib/dates.js';
 import { detectClarifications, issuerTransition, windowState } from '../clarify/index.js';
 import { buildExecutiveSummary } from '../summary/index.js';
 import { summaryToDocx } from '../export/docx.js';
@@ -53,7 +55,7 @@ const r = AsyncRouter();
 r.get('/reason-codes', (req, res) => res.json(REASON_CODES));
 
 // GET /api/tenders — pipeline לדשבורד
-r.get('/', (req, res) => res.json(req.store.all('tenders')));
+r.get('/', (req, res) => res.json(req.store.all('tenders').map((t) => withLiveDays(t))));
 
 // DELETE /api/tenders — ניקוי כל המכרזים של החשבון (מכרזים, דרישות, טיוטות, תוצאות).
 // אינו נוגע במאגר הידע (פרויקטים, אישורים, מסמכי חברה) ולא בפרטי החברה.
@@ -92,7 +94,7 @@ r.post('/', upload.single('file'), async (req, res) => {
   const [analysis, redFlags, thresholds] = await Promise.all([
     eng.analyzeMatch(parsed.requirements, kb),
     eng.checkRedFlags(text),
-    eng.checkThresholds(text, req.store.company()),
+    eng.checkThresholds(thresholdScope(text), req.store.company()), // רק פרק תנאי הסף, אם זוהה
   ]);
   const flags = redFlags.flags || [];
   const { gate } = qualify(req.store, { deadline: parsed.deadline, raw_text: text }, parsed.requirements, analysis, thresholds.checks || []);
@@ -104,7 +106,7 @@ r.post('/', upload.single('file'), async (req, res) => {
     name: parsed.name || 'מכרז חדש',
     issuer: parsed.issuer || 'גורם מפרסם',
     stage: 'התאמה',
-    days: parsed.deadline ? daysUntil(parsed.deadline) : 14,
+    days: daysUntil(parsed.deadline), // null אם אין מועד מזוהה — לא "14" מומצא
     progress: 0,
     match_score: analysis.matchScore,
     gate: gate.status, // שער הכשירות — ההחלטה (PASS/CONDITIONAL/HOLD/FAIL); הציון משני
@@ -136,6 +138,30 @@ r.post('/', upload.single('file'), async (req, res) => {
   }
 
   res.status(201).json({ tender, analysis, gate });
+});
+
+// POST /api/tenders/:id/reparse — פענוח מחדש של מכרז קיים מהטקסט השמור (אחרי שיפור במפענח).
+// מחליף את פרטי המכרז ואת הדרישות. השלמות ידניות ותשובות "כן/לא" לדרישות הישנות נמחקות
+// (הן היו קשורות לדרישות שאולי לא קיימות עוד); פרופיל החברה, ראיות ומאגר הידע — לא נגעים.
+r.post('/:id/reparse', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  if (!t.raw_text) return res.status(422).json({ error: 'אין טקסט שמור למכרז זה — יש להעלות אותו מחדש' });
+  const before = req.store.all('requirements').filter((x) => x.tender_id === t.id);
+  const parsed = await engine().parseTender(t.raw_text);
+  for (const old of before) req.store.remove('requirements', old.id);
+  for (const r0 of parsed.requirements) {
+    req.store.insert('requirements', { id: req.store.uid('req'), tender_id: t.id,
+      text: r0.text, category: r0.category || 'כללי', mandatory: !!r0.mandatory, status: null });
+  }
+  req.store.update('tenders', t.id, {
+    code: parsed.code || t.code, name: parsed.name || t.name, issuer: parsed.issuer || t.issuer,
+    deadline: parsed.deadline || null, question_deadline: parsed.question_deadline || null,
+    guarantee: parsed.guarantee || null, classification: parsed.classification || null,
+    min_turnover: parsed.min_turnover || null, duration: parsed.duration || null,
+    days: parsed.deadline ? daysUntil(parsed.deadline) : t.days, reparsed_at: new Date().toISOString(),
+  });
+  res.json({ ok: true, requirements_before: before.length, requirements_after: parsed.requirements.length });
 });
 
 // GET /api/tenders/:id — פרטי מכרז
@@ -173,7 +199,7 @@ r.get('/:id/analysis', async (req, res) => {
   const issuer_insight = issuerInsight(t.issuer, req.store.all('tenders'), req.store.all('outcomes'));
   const { file_path, raw_text, ...pub } = t; // לא חושפים נתיב דיסק; הטקסט הגולמי לא נדרש בחזית
   res.json({
-    tender: { ...pub, gate: a.gate.status, has_file: !!(file_path && existsSync(join(TENDER_DIR, basename(file_path)))) }, ...a.analysis,
+    tender: withLiveDays({ ...pub, gate: a.gate.status, has_file: !!(file_path && existsSync(join(TENDER_DIR, basename(file_path)))) }), ...a.analysis,
     thresholds: { checks: a.checks }, redFlags: a.redFlags, issuer_insight,
     gate: a.gate, requirement_statuses: a.requirements, expiry_warnings: a.expiryWarnings,
     sources: a.sources,
@@ -333,7 +359,7 @@ export async function assess(store, t, reqs) {
   const eng = engine();
   const [analysis, thresholds, redFlags] = await Promise.all([
     eng.analyzeMatch(reqs, kbForClaims(store.knowledge())),
-    eng.checkThresholds(t.raw_text || '', store.company()),
+    eng.checkThresholds(thresholdScope(t.raw_text || ''), store.company()), // רק פרק תנאי הסף, אם זוהה
     eng.checkRedFlags(t.raw_text || ''),
   ]);
   // העשרת כל פער במצב ההשלמה הידנית (manual_text) כדי שמסך הניתוח יוכל לטפל בו ולהציג "טופל"
@@ -512,9 +538,5 @@ export async function buildMerged(db, reqs) {
   }));
 }
 
-function daysUntil(iso) {
-  const d = Math.round((new Date(iso) - Date.now()) / 86400000);
-  return Number.isFinite(d) && d > 0 ? d : 14;
-}
 
 export default r;

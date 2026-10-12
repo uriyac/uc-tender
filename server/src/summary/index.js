@@ -120,9 +120,17 @@ export function buildExecutiveSummary({ tender, requirements = [], redFlags = { 
     .slice(0, 5).map((x) => ({ label: x.label, severity: x.severity, detail: x.detail }));
 
   const all = [...about, ...selection, ...dates, ...costs, ...terms];
+  // תנאי הסף מקובצים לפי נושא (מנהלי / פיננסי / ניסיון / איש מפתח / מנהל צוות / איכות)
+  const groups = [];
+  for (const c of conditions) {
+    let g = groups.find((x) => x.category === (c.category || 'תנאי סף'));
+    if (!g) groups.push(g = { category: c.category || 'תנאי סף', items: [] });
+    g.items.push(c);
+  }
   return {
     title: { name: tender.name, code: tender.code, issuer: tender.issuer },
-    about, selection, dates, costs, terms, conditions, watch,
+    about, selection, dates, costs, terms, conditions, condition_groups: groups, watch,
+    missing: all.filter((x) => !x.found && !/לא נדרש/.test(x.note || '')).map((x) => x.label), // לתצוגה מרוכזת
     requirements: { total: requirements.length, mandatory: mandatory.length, by_category: byCat },
     coverage: { found: all.filter((x) => x.found).length, total: all.length,
       requirements_located: sources.located || 0, requirements_total: sources.total || 0 },

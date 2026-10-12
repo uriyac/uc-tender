@@ -730,7 +730,7 @@
     const t=data.tender, set=(k,v)=>{const el=document.getElementById(k); if(el) el.textContent=v;};
     window.currentTender=t; window._srcs=[];
     set('an-code','מכרז '+t.code); set('an-name',t.name); set('an-issuer',t.issuer);
-    set('an-deadline', t.days!=null? ('מועד הגשה: '+t.days+' ימים') : 'מועד הגשה: —');
+    set('an-deadline', t.deadline_passed ? ('מועד הגשה: חלף ('+t.deadline+')') : t.days!=null? ('מועד הגשה: בעוד '+t.days+' ימים') : 'מועד הגשה: לא זוהה');
     const score=data.matchScore ?? t.match_score ?? 0;
     set('an-score',score+'%');
     const ring=document.getElementById('an-ring'); if(ring) ring.setAttribute('stroke-dashoffset', String(Math.round(383*(1-score/100))));
@@ -881,27 +881,31 @@
   async function renderExecSummary(id){
     const el=document.getElementById('an-exec'); if(!el) return;
     let s; try{ s=await window.API.tenderSummary(id); }catch(e){ el.innerHTML=''; return; }
-    const factCell=f=>`<div class="py-2 ${f.alert?'rounded-[6px] px-2 -mx-2':''}" style="${f.alert?'background:oklch(0.58 0.22 25 / 0.07)':''}"><div class="t-11 ${f.alert?'font-semibold':''}" style="color:${f.alert?'oklch(0.5 0.2 25)':'rgba(0,0,0,.5)'}">${f.alert?'⚠ ':''}${esc(f.label)}</div>${f.found
-      ?`<div class="t-13 mt-0.5 flex items-start gap-1.5"><span class="flex-1">${esc(f.value)}</span>${f.source?srcChip(f.source):''}</div>${f.note?`<div class="t-11 mt-0.5 font-medium ${/חלף|היום/.test(f.note)?'text-rose-600':'text-black/55'}">${esc(f.note)}</div>`:''}`
-      :`<div class="t-12 mt-0.5 italic" style="color:oklch(0.5 0.12 70)">${esc(f.note)}</div>`}</div>`;
-    const block=(title,facts)=>`<div class="px-5 py-3 border-b" style="border-color:var(--hairline-soft)"><div class="t-12 font-semibold mb-1">${title}</div><div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">${facts.map(factCell).join('')}</div></div>`;
-    const conds=s.conditions.map(c=>`<li class="py-1.5 flex items-start gap-2 t-12 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><span class="text-black/35 shrink-0">•</span><span class="text-black/80 flex-1">${esc(cleanReq(c.text))}</span>${c.source?srcChip(c.source):''}</li>`).join('');
-    const cats=Object.entries(s.requirements.by_category).map(([k,v])=>`${esc(k)} ${v}`).join(' · ');
+    // רק פרטים שנמצאו מקבלים משבצת; החסרים מרוכזים בשורה אחת בתחתית (התקציר היה ארוך מדי)
+    const factCell=f=>`<div class="py-1.5 ${f.alert?'rounded-[6px] px-2 -mx-2':''}" style="${f.alert?'background:oklch(0.58 0.22 25 / 0.07)':''}"><div class="t-11 ${f.alert?'font-semibold':''}" style="color:${f.alert?'oklch(0.5 0.2 25)':'rgba(0,0,0,.5)'}">${f.alert?'⚠ ':''}${esc(f.label)}</div><div class="t-13 mt-0.5">${esc(f.value)} ${f.source?srcChip(f.source):''}${f.note?` <span class="t-11 font-medium ${/חלף|היום/.test(f.note)?'text-rose-600':'text-black/55'}">· ${esc(f.note)}</span>`:''}</div></div>`;
+    const block=(title,facts)=>{ const found=facts.filter(f=>f.found); return found.length?`<div class="px-5 py-2.5 border-b" style="border-color:var(--hairline-soft)"><div class="t-12 font-semibold mb-0.5">${title}</div><div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">${found.map(factCell).join('')}</div></div>`:''; };
+    const groups=(s.condition_groups||[]).map(g=>`<div class="mt-2"><div class="t-11 font-semibold text-black/55">${esc(g.category)} · ${g.items.length}</div><ul>${g.items.map(c=>`<li class="py-1 t-12 text-black/80 border-t first:border-t-0" style="border-color:var(--hairline-soft)">${esc(cleanReq(c.text))} ${c.source?srcChip(c.source):''}</li>`).join('')}</ul></div>`).join('');
+    const groupLine=(s.condition_groups||[]).map(g=>`${esc(g.category)} ${g.items.length}`).join(' · ');
     el.innerHTML=`<div class="rounded-[8px] border bg-white card-soft overflow-hidden" style="border-color:var(--hairline)">
       <div class="px-5 py-4 flex items-start justify-between gap-3 border-b" style="border-color:var(--hairline);background:#FAFAF8">
         <div><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/45">תקציר מכרז</div><div class="t-18 font-semibold mt-1">${esc(s.title.name||'')}</div><div class="t-12 text-black/55 mt-0.5">${esc(s.title.code||'')} · ${esc(s.title.issuer||'')}</div></div>
-        <a href="/api/tenders/${encodeURIComponent(id)}/summary.docx" class="t-12 font-semibold h-9 px-3 inline-flex items-center rounded-[6px] border bg-white shrink-0" style="border-color:var(--hairline)">⬇ Word</a>
+        <div class="flex gap-1.5 shrink-0"><button onclick="anReparse('${id}')" class="t-12 font-semibold h-9 px-3 inline-flex items-center rounded-[6px] border bg-white text-black/60" style="border-color:var(--hairline)" title="מריץ שוב את הפענוח על המכרז (למשל אחרי עדכון המערכת). השלמות ידניות לדרישות יימחקו.">↻ פענח מחדש</button><a href="/api/tenders/${encodeURIComponent(id)}/summary.docx" class="t-12 font-semibold h-9 px-3 inline-flex items-center rounded-[6px] border bg-white" style="border-color:var(--hairline)">⬇ Word</a></div>
       </div>
-      ${block('על המכרז',s.about)}${block('איך בוחרים זוכה',s.selection)}${block('מועדים',s.dates)}
-      <div class="px-5 py-3 border-b" style="border-color:var(--hairline-soft)"><div class="t-12 font-semibold mb-1">מה נדרש מהמציע</div><div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">${s.costs.map(factCell).join('')}</div>
-        <div class="t-12 font-semibold mt-2">תנאי סף (${s.conditions.length})</div><ul class="mt-1">${conds||'<li class="t-12" style="color:oklch(0.5 0.12 70)">לא זוהו תנאי סף מובנים — יש לעבור על החוברת ידנית.</li>'}</ul>
-        <div class="t-11 text-black/50 mt-1.5">סה״כ ${s.requirements.total} דרישות במכרז${cats?` · ${cats}`:''}</div></div>
+      ${block('על המכרז',s.about)}${block('איך בוחרים זוכה',s.selection)}${block('מועדים',s.dates)}${block('מה נדרש מהמציע',s.costs)}
+      <details class="px-5 py-2.5 border-b" style="border-color:var(--hairline-soft)"><summary class="t-12 font-semibold cursor-pointer">תנאי סף (${s.conditions.length})${groupLine?` <span class="font-normal text-black/50">— ${groupLine}</span>`:''}</summary>${groups||'<div class="t-12 mt-1" style="color:oklch(0.5 0.12 70)">לא זוהו תנאי סף מובנים — יש לעבור על החוברת ידנית.</div>'}</details>
       ${block('תנאים מסחריים',s.terms)}
-      ${s.watch.length?`<div class="px-5 py-3 border-b" style="border-color:var(--hairline-soft)"><div class="t-12 font-semibold mb-1">לתשומת לב</div><ul class="space-y-1">${s.watch.map(w=>`<li class="t-12 text-black/75">• <b>${esc(w.label)}</b> — ${esc(w.detail)}</li>`).join('')}</ul></div>`:''}
-      <div class="px-5 py-2.5 t-11 text-black/45">זוהו ${s.coverage.found} מתוך ${s.coverage.total} פרטים. ${esc(s.disclaimer)}</div>
+      ${s.watch.length?`<details class="px-5 py-2.5 border-b" style="border-color:var(--hairline-soft)"><summary class="t-12 font-semibold cursor-pointer">לתשומת לב (${s.watch.length})</summary><ul class="mt-1 space-y-1">${s.watch.map(w=>`<li class="t-12 text-black/75">• <b>${esc(w.label)}</b> — ${esc(w.detail)}</li>`).join('')}</ul></details>`:''}
+      ${(s.missing||[]).length?`<div class="px-5 py-2 t-12 border-b" style="border-color:var(--hairline-soft);color:oklch(0.5 0.12 70)">לא זוהו במכרז: ${s.missing.map(esc).join(' · ')} — בדוק בחוברת</div>`:''}
+      <div class="px-5 py-2 t-11 text-black/45">${esc(s.disclaimer)}</div>
     </div>`;
   }
   window.renderExecSummary=renderExecSummary;
+  async function anReparse(id){
+    if(!confirm('לפענח את המכרז מחדש?\nהדרישות ייקראו שוב מהמסמך. השלמות ידניות ותשובות לדרישות הנוכחיות יימחקו (פרופיל החברה ומאגר הידע לא ישתנו).')) return;
+    let r; try{ r=await window.API.reparseTender(id); }catch(e){ alert('הפענוח נכשל: '+e.message); return; }
+    await renderAnalysis(); alert(`הפענוח עודכן: ${r.requirements_before} → ${r.requirements_after} דרישות.`);
+  }
+  window.anReparse=anReparse;
 
   // ---- הבהרות (server/src/clarify) — שאלה פנימית לחברה מול שאלה רשמית לעורך המכרז ----
   // פנימית: התשובה מעדכנת פרופיל/דרישה והשער מחושב מחדש (לפני → אחרי). "כן" = הצהרה, לא ראיה.

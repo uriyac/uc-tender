@@ -59,24 +59,24 @@ export async function summaryToDocx(s) {
     ? P(`${f.label}: ${f.value}${f.note ? ` — ${f.note}` : ''}${where(f.source)}`, { bold: !!f.alert, color: f.alert ? 'B91C1C' : undefined })
     : P(`${f.label}: ${f.note}`, { color: '9A6700', italics: true }));
 
-  const r = s.requirements;
+  // רק פרטים שנמצאו; החסרים מרוכזים בשורה אחת. פרק בלי אף פרט — לא מוצג.
+  const section = (title, facts) => { const f = facts.filter((x) => x.found); return f.length ? [H(title), ...f.map(factLine)] : []; };
+  const groups = s.condition_groups || [];
   const children = [
     P(`תקציר מכרז — ${s.title.name || ''}`, { heading: HeadingLevel.TITLE, bold: true }),
     P(`מכרז ${s.title.code || ''} · ${s.title.issuer || ''}`, { color: '666666' }),
-    H('על המכרז'), ...s.about.map(factLine),
-    H('איך בוחרים זוכה'), ...s.selection.map(factLine),
-    H('מועדים'), ...s.dates.map(factLine),
-    H('מה נדרש מהמציע'), ...s.costs.map(factLine),
-    P(`תנאי סף (${s.conditions.length}):`, { bold: true }),
-    ...(s.conditions.length ? s.conditions.map((c) => P(`• ${c.text}${where(c.source)}`))
+    ...section('על המכרז', s.about), ...section('איך בוחרים זוכה', s.selection),
+    ...section('מועדים', s.dates), ...section('מה נדרש מהמציע', s.costs),
+    H(`תנאי סף (${s.conditions.length})`),
+    ...(groups.length ? groups.flatMap((g) => [P(`${g.category}:`, { bold: true }), ...g.items.map((c) => P(`• ${c.text}${where(c.source)}`))])
       : [P('לא זוהו תנאי סף מובנים — יש לעבור על החוברת ידנית.', { color: '9A6700' })]),
-    P(`סה״כ דרישות במכרז: ${r.total} (${Object.entries(r.by_category).map(([k, v]) => `${k} ${v}`).join(' · ')})`, { color: '444444' }),
-    H('תנאים מסחריים'), ...s.terms.map(factLine),
+    ...section('תנאים מסחריים', s.terms),
   ];
   if (s.watch.length) {
     children.push(H('לתשומת לב'));
     for (const w of s.watch) children.push(P(`• ${w.label} — ${w.detail}`));
   }
+  if ((s.missing || []).length) children.push(P(''), P(`לא זוהו במכרז: ${s.missing.join(' · ')} — בדוק בחוברת.`, { color: '9A6700', italics: true }));
   children.push(P(''), P(`${s.disclaimer} הופק: ${new Date(s.generated_at).toLocaleDateString('he-IL')}.`, { color: '888888', size: 16, italics: true }));
   return Packer.toBuffer(new Document({ sections: [{ properties: {}, children }] }));
 }

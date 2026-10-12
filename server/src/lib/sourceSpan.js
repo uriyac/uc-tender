@@ -68,6 +68,14 @@ export function locate(reqText, ctx) {
   const exact = ctx.windows.find((w) => !w.joined && w.norm.includes(target)) || ctx.windows.find((w) => w.norm.includes(target));
   if (exact) return { match: 'exact', page: pageAt(ctx.ends, exact.offset), quote: clip(exact.text) };
 
+  // 1ב) דרישה ארוכה שמאחדת סעיף ותתי-סעיפים ("2.3.1 ... (1) ... (2) ...") אינה רצף אחד במסמך —
+  //     מאתרים את פתיחת הסעיף (10 המילים הראשונות) כלשונה. זה עדיין מקור מדויק לתחילת הדרישה.
+  const head = target.split(' ').slice(0, 10).join(' ');
+  if (head.length >= 25 && head !== target) {
+    const h = ctx.windows.find((w) => !w.joined && w.norm.includes(head)) || ctx.windows.find((w) => w.norm.includes(head));
+    if (h) return { match: 'exact', page: pageAt(ctx.ends, h.offset), quote: clip(h.text) };
+  }
+
   // 2) רוב המילים בשורה אחת
   const req = [...new Set(words(reqText))];
   if (req.length >= 2) {

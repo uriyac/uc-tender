@@ -3,6 +3,7 @@
 // ה-Guardrail (אפס-הזיות) נאכף כאן במבנה, כדי ש-Claude יירש אותו בשלב 5.
 
 import { parseMoney, formatMoney, requiredTurnover, compareClassification } from '../../qualification/index.js';
+import { normalizeText, extractThresholdSection } from '../../lib/tenderSections.js';
 
 // --- חפיפת מילות-מפתח עם נרמול עברי (בלי מפתח, דטרמיניסטי) ---
 // נרמול: הסרת ניקוד/גרשיים, סופיות→רגילות, והסרת עד 2 תחיליות (ב/ל/ו/ה/מ/ש/כ).
@@ -196,20 +197,33 @@ function rowToRequirement(cols) {
 }
 
 export function parseTender(rawText) {
-  const text = rawText || '';
+  const text = normalizeText(rawText || ''); // PDF: טאבים בין רצפי-טקסט → רווח
   const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
 
   // קוד מכרז: מעוגן ל"מכרז"/"מס'" כדי לא לתפוס שבר תאריך (למשל 09 מתוך 15/09/2026)
-  const codeM = text.match(/(?:מכרז|מס['׳])\s*(?:פומבי\s*)?(?:מס['׳]?\s*)?(\d+\/\d{2,4})/);
+  const codeM = text.match(/(?:מכרז|מס['׳])\s*(?:פומבי\s*)?(?:ממוכן\s*)?(?:\(מקוון\)\s*)?(?:מס['׳]?\s*)?(\d+\/\d{2,4})/);
   const code = codeM ? '#' + codeM[1]
     : (text.match(/#?\d+\/20\d{2}/) || ['#000/2026'])[0].replace(/^#?/, '#');
-  const issuer = stripMd((text.match(/(משרד|עיריית|עירית|רשות|המוסד|פיקוד|מועצה)[^\n.,|]{0,25}/) || ['גורם מפרסם'])[0]);
 
-  // שם: השורה המשמעותית הראשונה (בלי סימוני Markdown ובלי שורת-טבלה), בלי "מכרז" והקוד
-  const nameLine = lines.map(stripMd).find((l) => l.length >= 6 && !l.startsWith('|')) || 'מכרז חדש';
+  // שורת-הכותרת של המכרז: "מכרז ל<נושא> עבור <גוף>" — מקור עדיף לשם ולגוף המפרסם
+  const titleLine = lines.slice(0, 40).map(stripMd).find((l) => /^מכרז\s+(?:פומבי\s+)?ל\s*\S/.test(l) || /^מכרז\s+(?:פומבי\s+)?(?:מס['׳]?\s*\S+\s+)?ל(?:מתן|ביצוע|אספקת|הקמת|רכישת)/.test(l));
+  // גוף מפרסם: "עבור חברת X" / "X בע"מ מזמינה" קודמים ל"משרד/רשות" שעלולים להופיע רק ברקע
+  // (מכרז של נתיבי איילון מזכיר את משרד התחבורה — המפרסם הוא החברה, לא המשרד).
+  let issuer = (titleLine && (titleLine.match(/(?:עבור|מטעם)\s+([^,(]{2,40}?)\s*$/) || [])[1])
+    || (text.match(/(?:^|\n)\s*(?:חברת\s+)?([^\n"(]{2,30}?\s+בע"?מ)\s*(?:\(להלן[^)]*\)\s*)?מזמינה/) || [])[1]
+    || (text.match(/(משרד|עיריית|עירית|רשות|המוסד|פיקוד|מועצה)[^\n.,|]{0,25}/) || [])[0];
+  issuer = issuer ? stripMd(issuer).replace(/^חברת\s+/, '').trim() : 'גורם מפרסם';
+
+  // שם: שורת-הכותרת ("מכרז ל...") אם יש; אחרת השורה המשמעותית הראשונה (בלי "מסמך א'" וכו')
+  const nameLine = titleLine || lines.map(stripMd).find((l) => l.length >= 6 && !l.startsWith('|') && !/^מסמך\s+\S{1,3}$/.test(l)) || 'מכרז חדש';
   const name = nameLine
     .replace(/^מכרז\s*(פומבי\s*)?(מס['׳]?\s*)?/, '')
-    .replace(/#?\d+\/\d{2,4}\s*(ל|—|-)?\s*/, '').trim() || nameLine;
+    .replace(/#?\d+\/\d{2,4}\s*(ל|—|-)?\s*/, '')
+    .replace(/^ל\s*(?=\S)/, '').trim() || nameLine;
+
+  // מכרז מובנה עם פרק "תנאי הסף" ממוספר → קוראים את הפרק לפי סעיפים (דרישה = סעיף שלם).
+  // זה מחליף את איסוף השורות לפי מילות-רמז, שתפס רקע/הוראות הגשה/שברי משפטים ופספס את התנאים.
+  const section = extractThresholdSection(text);
 
   // דרישות: קודם מטבלאות Markdown (DOCX/XLSX), ואז שורות-רמז (PDF / fallback)
   const tableReqs = markdownTableRows(text).map(rowToRequirement).filter(Boolean);
@@ -226,19 +240,24 @@ export function parseTender(rawText) {
   }
   const seen = new Set(tableReqs.map((r) => r.text));
   // תקרה רחבה (מכרז ישראלי טיפוסי: 11–40 תנאים). תקרה של 12 הפילה תנאי-סף בשקט — recall קודם.
-  const requirements = [...tableReqs, ...lineReqs.filter((r) => !seen.has(r.text))].slice(0, 80);
+  const requirements = section.found
+    ? section.requirements.map(({ text: t, category, mandatory }) => ({ text: t, category, mandatory }))
+    : [...tableReqs, ...lineReqs.filter((r) => !seen.has(r.text))].slice(0, 80);
 
   // סיכום מובנה (B11): שדות שמכרז ציבורי כמעט תמיד כולל
   const money = /([\d,]+)\s*(מיליון|אלף)?\s*(₪|ש"?ח|שקל)/;
   const guar = text.match(new RegExp('ערבות[^\\n]{0,45}?' + money.source));
-  const turn = text.match(new RegExp('מחזור[^\\n]{0,45}?' + money.source));
+  // מחזור נדרש — רק מתוך תנאי הסף אם זוהה פרק (אחרת "מחזור 100 מיליון" מהגדרה בעמ' 55 נקרא כתנאי)
+  const thresholdText = section.found ? section.requirements.map((r) => r.text).join('\n') : text;
+  const turn = thresholdText.match(new RegExp('מחזור[^\\n]{0,45}?' + money.source));
   const classM = text.match(/סיווג קבלני\s*[א-ת]?-?\d?/);
   const durM = text.match(/(\d+)\s*(חודשים|חודש|שנים|שנה)/);
   // מועד אחרון לשאלות הבהרה — קודם, ומוסר מהטקסט כדי ש"מועד אחרון להגשת שאלות" לא ייקרא כמועד ההגשה
   const DATE = '(\\d{1,2}[./]\\d{1,2}[./]\\d{2,4})';
   const qRe = new RegExp(`(שאלות הבהרה|הגשת שאלות|לשאלות|שאלות יש להגיש)[^\\d\\n]{0,30}${DATE}`);
   const qM = text.match(qRe);
-  const dateM = text.replace(qRe, ' ').match(/(מועד אחרון|מועד הגשה|להגשה עד|הגשה עד)[^\d]{0,15}(\d{1,2}[./]\d{1,2}[./]\d{2,4})/);
+  // "המועד האחרון להגשת ההצעות - 18.05.2026" (גם "מועד הגשה", "להגשה עד")
+  const dateM = text.replace(qRe, ' ').match(/(מועד\s+(?:ה)?אחרון|מועד\s+(?:ה)?הגשה|להגשה\s+עד|הגשה\s+עד)[^\d\n]{0,30}(\d{1,2}[./]\d{1,2}[./]\d{2,4})/);
 
   return {
     code, name, issuer,
