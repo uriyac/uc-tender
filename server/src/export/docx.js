@@ -48,36 +48,34 @@ export async function draftToDocx(draft) {
   return Packer.toBuffer(doc);
 }
 
-// תקציר מנהלים (summary/index.js) → Word עם RTL. מציג "לא זוהה" במפורש ומקור (עמוד) לכל פרט.
+// תקציר מכרז (summary/index.js) → Word עם RTL. מציג את המכרז בלבד — בלי בדיקת התאמה לחברה.
+// כל פרט עם עמוד מקור; מה שלא נמצא מופיע במפורש כ"לא זוהה".
 export async function summaryToDocx(s) {
   const P = (text, opts = {}) => new Paragraph({ ...RTL, spacing: { after: 60 }, ...(opts.heading ? { heading: opts.heading, spacing: { before: 240, after: 80 } } : {}),
     children: [new TextRun({ text, rightToLeft: true, bold: !!opts.bold, color: opts.color, size: opts.size, italics: !!opts.italics })] });
-  const where = (src) => (src ? (src.page ? ` (עמ׳ ${src.page})` : ' (מופיע במכרז)') : '');
+  const H = (text) => P(text, { heading: HeadingLevel.HEADING_2, bold: true });
+  const where = (src) => (src ? (src.page ? ` (עמ׳ ${src.page})` : '') : '');
   const factLine = (f) => (f.found
-    ? P(`${f.label}: ${f.value}${f.note ? ` — ${f.note}` : ''}${where(f.source)}`)
-    : P(`${f.label}: ${f.note}`, { color: 'B45309', italics: true }));
+    ? P(`${f.label}: ${f.value}${f.note ? ` — ${f.note}` : ''}${where(f.source)}`, { bold: !!f.alert, color: f.alert ? 'B91C1C' : undefined })
+    : P(`${f.label}: ${f.note}`, { color: '9A6700', italics: true }));
 
-  const c = s.bottom_line.counts;
+  const r = s.requirements;
   const children = [
-    P(`תקציר מנהלים — ${s.title.name || ''}`, { heading: HeadingLevel.TITLE, bold: true }),
+    P(`תקציר מכרז — ${s.title.name || ''}`, { heading: HeadingLevel.TITLE, bold: true }),
     P(`מכרז ${s.title.code || ''} · ${s.title.issuer || ''}`, { color: '666666' }),
-    P('השורה התחתונה', { heading: HeadingLevel.HEADING_2, bold: true }),
-    P(`${s.bottom_line.text} (${s.bottom_line.gate})`, { bold: true, size: 28 }),
-    P(s.bottom_line.reason || ''),
-    P(`תנאי סף: ${c.total} · עומד ומגובה ${c.met_verified} · מוצהר ${c.met_claimed} · לא עומד ${c.not_met} · לא הוכרע ${c.unknown}`, { color: '444444' }),
-    P('מועדים', { heading: HeadingLevel.HEADING_2, bold: true }), ...s.dates.map(factLine),
-    P('כסף, היקף ורישוי', { heading: HeadingLevel.HEADING_2, bold: true }), ...s.money.map(factLine),
-    P('תנאי הסף', { heading: HeadingLevel.HEADING_2, bold: true }),
-    ...(s.thresholds.length ? s.thresholds.map((t) => P(`• ${t.label} — ${t.status_he}${where(t.source)}${t.action ? `. ${t.action}` : ''}`))
-      : [P('לא זוהו תנאי סף מובנים — יש לעבור על החוברת ידנית.', { color: 'B45309' })]),
+    H('על המכרז'), ...s.about.map(factLine),
+    H('איך בוחרים זוכה'), ...s.selection.map(factLine),
+    H('מועדים'), ...s.dates.map(factLine),
+    H('מה נדרש מהמציע'), ...s.costs.map(factLine),
+    P(`תנאי סף (${s.conditions.length}):`, { bold: true }),
+    ...(s.conditions.length ? s.conditions.map((c) => P(`• ${c.text}${where(c.source)}`))
+      : [P('לא זוהו תנאי סף מובנים — יש לעבור על החוברת ידנית.', { color: '9A6700' })]),
+    P(`סה״כ דרישות במכרז: ${r.total} (${Object.entries(r.by_category).map(([k, v]) => `${k} ${v}`).join(' · ')})`, { color: '444444' }),
+    H('תנאים מסחריים'), ...s.terms.map(factLine),
   ];
-  if (s.risks.length) {
-    children.push(P('סיכונים', { heading: HeadingLevel.HEADING_2, bold: true }));
-    for (const r of s.risks) children.push(P(`• ${r.label} (${r.severity === 'high' ? 'גבוה' : r.severity === 'medium' ? 'בינוני' : 'מידע'}) — ${r.detail}`));
-  }
-  if (s.actions.length) {
-    children.push(P('מה לעשות עכשיו', { heading: HeadingLevel.HEADING_2, bold: true }));
-    s.actions.forEach((a, i) => children.push(P(`${i + 1}. ${a}`)));
+  if (s.watch.length) {
+    children.push(H('לתשומת לב'));
+    for (const w of s.watch) children.push(P(`• ${w.label} — ${w.detail}`));
   }
   children.push(P(''), P(`${s.disclaimer} הופק: ${new Date(s.generated_at).toLocaleDateString('he-IL')}.`, { color: '888888', size: 16, italics: true }));
   return Packer.toBuffer(new Document({ sections: [{ properties: {}, children }] }));

@@ -300,9 +300,13 @@ r.get('/:id/clarifications/export.txt', async (req, res) => {
 });
 
 // ============ תקציר מנהלים (summary/index.js) — הרכבה דטרמיניסטית, כל פרט עם מקור ============
+// התקציר מציג את המכרז בלבד — בלי שער כשירות ובלי נתוני החברה (החלטת מוצר 2026-10-12).
 async function summaryFor(store, t) {
-  const c = await clarificationsFor(store, t);
-  return buildExecutiveSummary({ tender: t, gate: c.a.gate, redFlags: c.a.redFlags, sources: c.a.sources, clar: c });
+  const reqs = store.all('requirements').filter((x) => x.tender_id === t.id);
+  const redFlags = await engine().checkRedFlags(t.raw_text || '');
+  const src = locateAll(reqs, t.raw_text || '');
+  return buildExecutiveSummary({ tender: t, requirements: reqs, redFlags,
+    sources: { located: src.located, total: src.total } });
 }
 
 // GET /api/tenders/:id/summary
