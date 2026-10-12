@@ -105,7 +105,7 @@ export async function parseTender(rawText) {
     system: 'אתה מפענח מסמך מכרז ציבורי ישראלי. חלץ מטא-נתונים ואת רשימת הדרישות ותנאי הסף. ' +
       'הישאר נאמן לטקסט — אל תמציא דרישות. החזר JSON בלבד.',
     instruction: 'חלץ: קוד מכרז, שם, גורם מפרסם, מועד הגשה, ערבות (סכום), סיווג קבלני נדרש, ' +
-      'מחזור מינימלי נדרש, משך ההתקשרות — כל אלה אם מצוינים (אחרת null). וגם רשימת דרישות/תנאי-סף. ' +
+      'מחזור מינימלי נדרש, משך ההתקשרות, מועד אחרון להגשת שאלות הבהרה (question_deadline) — כל אלה אם מצוינים (אחרת null). וגם רשימת דרישות/תנאי-סף. ' +
       'לכל דרישה: הטקסט שלה, קטגוריה קצרה (ניסיון / פיננסי / סיווג ורישוי / ערבות וביטוח / כשירות צוות / איכות ותקינה / כללי), ' +
       'ו-mandatory (true אם זו דרישת חובה/תנאי-סף שפוסלת הצעה שאינה עומדת בה, אחרת false).',
     dataLabel: 'מסמך המכרז',
@@ -122,6 +122,7 @@ export async function parseTender(rawText) {
         classification: { type: ['string', 'null'] },
         min_turnover: { type: ['string', 'null'] },
         duration: { type: ['string', 'null'] },
+        question_deadline: { type: ['string', 'null'] },
         requirements: {
           type: 'array', items: {
             type: 'object', additionalProperties: false,
@@ -130,7 +131,7 @@ export async function parseTender(rawText) {
           },
         },
       },
-      required: ['code', 'name', 'issuer', 'deadline', 'guarantee', 'classification', 'min_turnover', 'duration', 'requirements'],
+      required: ['code', 'name', 'issuer', 'deadline', 'guarantee', 'classification', 'min_turnover', 'duration', 'question_deadline', 'requirements'],
     },
   });
   return {
@@ -142,6 +143,7 @@ export async function parseTender(rawText) {
     classification: out.classification || null,
     min_turnover: out.min_turnover || null,
     duration: out.duration || null,
+    question_deadline: out.question_deadline || null,
     requirements: (out.requirements || []).length ? out.requirements
       : [{ text: 'לא זוהו דרישות מובנות — יש לבדוק את הטקסט', category: 'כללי' }],
   };

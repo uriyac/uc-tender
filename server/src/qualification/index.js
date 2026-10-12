@@ -174,6 +174,7 @@ export function requirementStatuses(requirements = [], analysis = {}, checks = [
     let status, basis;
     if (linked) { status = checkStatus(linked); basis = 'threshold'; }
     else if (failIds.has(r.id)) { status = 'not_met'; basis = 'analysis'; }
+    else if (r.company_answer === 'no') { status = 'not_met'; basis = 'clarification'; } // "לא" בבירור פנימי
     else if (r.manual_text) { status = 'met_claimed'; basis = 'manual'; }
     else if (metTexts.has(r.text) && !gapIds.has(r.id)) { status = 'met_claimed'; basis = 'memory'; }
     else { status = 'unknown_company'; basis = 'none'; }

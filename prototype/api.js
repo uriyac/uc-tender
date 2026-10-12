@@ -68,6 +68,9 @@ const API = {
   // קישור מסמך כראיה לנתון בפרופיל (topic: turnover/classification/years/public/staff). docId=null מבטל.
   linkEvidence(topic, docId) { return this._send('PUT', '/api/knowledge/company/evidence', { topic, doc_id: docId }); },
   // אישור/דחייה של ידע שהמנוע הציע. items: [{type:'project'|'certification', id}]
+  clarifications(tenderId) { return this._send('GET', '/api/tenders/' + tenderId + '/clarifications'); },
+  answerClarification(tenderId, key, value) { return this._send('POST', '/api/tenders/' + tenderId + '/clarifications/answer', { key, value }); },
+  issuerClarification(tenderId, key, action, extra = {}) { return this._send('POST', '/api/tenders/' + tenderId + '/clarifications/issuer', { key, action, ...extra }); },
   reviewKnowledge(action, items) { return this._send('POST', '/api/knowledge/review', { action, items }); },
 
   addProject(p) { return this._send('POST', '/api/knowledge/projects', p); },

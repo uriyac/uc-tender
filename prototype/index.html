@@ -798,6 +798,7 @@
     anTab(document.querySelector('#an-tabs .an-tab.active')?.dataset.antab || 'overview');
     window.currentGate = data.gate ? data.gate.status : null;
     renderTailoring(id); // קומת הגמישות (F2) — נטען במקביל
+    renderClarifications(id); // מנוע ההבהרות — פנימיות + לעורך המכרז
   }
   window.renderAnalysis=renderAnalysis;
 
@@ -874,6 +875,67 @@
     }).join('');
     el.innerHTML=head+cards;
   }
+  // ---- הבהרות (server/src/clarify) — שאלה פנימית לחברה מול שאלה רשמית לעורך המכרז ----
+  // פנימית: התשובה מעדכנת פרופיל/דרישה והשער מחושב מחדש (לפני → אחרי). "כן" = הצהרה, לא ראיה.
+  // לעורך המכרז: אף פעם לא נשלחת מכאן. אישור → אדם שולח בערוץ הרשמי → מתעד → קולט תשובה.
+  const CL_STATE={SUGGESTED:['הצעה','rgba(15,30,61,.55)','rgba(15,30,61,.07)'],DRAFT:['טיוטה','rgba(15,30,61,.65)','rgba(15,30,61,.08)'],APPROVED:['מאושר לשליחה','var(--signal)','var(--signal-8)'],SENT:['נשלח — ממתין לתשובה','oklch(0.45 0.12 70)','oklch(0.72 0.16 70 / 0.14)'],ANSWERED:['התקבלה תשובה','oklch(0.42 0.14 155)','oklch(0.62 0.15 155 / 0.12)'],RESOLVED:['נפתר','oklch(0.42 0.14 155)','oklch(0.62 0.15 155 / 0.12)'],AMBIGUOUS:['נשאר עמום','oklch(0.5 0.2 25)','oklch(0.58 0.22 25 / 0.1)'],WINDOW_CLOSED:['חלף מועד השאלות','oklch(0.5 0.2 25)','oklch(0.58 0.22 25 / 0.1)'],DISMISSED:['בוטל','rgba(0,0,0,.4)','rgba(0,0,0,.05)']};
+  async function renderClarifications(id){
+    const el=document.getElementById('an-clarify'); if(!el) return;
+    let d; try{ d=await window.API.clarifications(id); }catch(e){ el.innerHTML=''; return; }
+    const internal=d.items.filter(i=>i.target==='internal'), issuer=d.items.filter(i=>i.target==='issuer'&&i.state!=='DISMISSED');
+    anSetCount('an-tc-cl', internal.length+issuer.filter(i=>!['RESOLVED','WINDOW_CLOSED'].includes(i.state)).length, true);
+    window._cl=Object.fromEntries(d.items.map(i=>[i.key,i]));
+    const flash=window._clFlash||''; window._clFlash=''; // הודעת "לפני → אחרי" מוצגת פעם אחת
+    const w=d.window, winLine = !w.known ? '<span style="color:oklch(0.45 0.12 70)">⚠ לא זוהה במכרז מועד אחרון לשאלות הבהרה — בדוק בחוברת לפני שליחה.</span>' : (w.open ? `מועד אחרון לשאלות הבהרה: <b>${esc(w.deadline)}</b>` : `<span style="color:oklch(0.5 0.2 25)">המועד האחרון לשאלות (${esc(w.deadline)}) חלף — שאלות פתוחות הופכות לסיכון מתועד.</span>`);
+    const why=i=>`<div class="t-11 text-black/50 mt-1">${esc(i.why_it_matters)}</div>`;
+    const intCard=i=>{
+      let input='';
+      if(i.answer_kind==='yes_no') input=`<div class="flex gap-1.5 mt-2"><button onclick="clAnswer('${i.key}','yes')" class="t-12 font-semibold h-8 px-3 rounded-[6px] text-white" style="background:var(--signal)">כן</button><button onclick="clAnswer('${i.key}','no')" class="t-12 font-semibold h-8 px-3 rounded-[6px] border bg-white" style="border-color:var(--hairline)">לא</button><button onclick="clAnswer('${i.key}','unknown')" class="t-12 h-8 px-3 rounded-[6px] border bg-white text-black/55" style="border-color:var(--hairline)">לא יודע</button></div>${i.profile_field?'':'<div class="t-11 text-black/45 mt-1">"כן" נרשם כהצהרה — עדיין יידרש מסמך שמוכיח.</div>'}`;
+      else if(i.answer_kind==='upload') input=`<button onclick="anTab('thresholds')" class="mt-2 t-12 font-semibold h-8 px-3 rounded-[6px] border bg-white" style="border-color:var(--signal-20);color:var(--signal)">📎 קשר מסמך בטאב "תנאי סף"</button>`;
+      else input=`<div class="flex gap-1.5 mt-2"><input id="cl-in-${i.key.replace(/[^\w]/g,'_')}" ${i.answer_kind==='number'?'type="number" min="0"':''} placeholder="${esc(i.hint||'')}" class="t-13 h-8 px-2.5 border rounded-[6px] w-48" style="border-color:var(--hairline)"><button onclick="clAnswer('${i.key}',document.getElementById('cl-in-${i.key.replace(/[^\w]/g,'_')}').value)" class="t-12 font-semibold h-8 px-3 rounded-[6px] text-white" style="background:var(--signal)">שמור</button></div>${i.profile_field?'<div class="t-11 text-black/45 mt-1">התשובה תישמר בפרופיל החברה ותשמש בכל המכרזים.</div>':''}`;
+      return `<div class="rounded-[8px] border p-4 mb-2.5 bg-white" style="border-color:${i.decision_impact==='flips_gate'?'oklch(0.72 0.16 70 / 0.45)':'var(--hairline)'}"><div class="flex items-start justify-between gap-2"><div class="t-13 font-semibold">${esc(i.question)}</div>${i.source?srcChip({match:'exact',...i.source}):''}</div><div class="t-11 text-black/55 mt-0.5">בגלל: ${esc(i.label)}${i.answer==='unknown'?' · <b>סומן "לא יודע" — נשאר פתוח</b>':''}</div>${why(i)}${input}</div>`;
+    };
+    const isCard=i=>{
+      const st=CL_STATE[i.state]||CL_STATE.SUGGESTED, k=i.key, editable=['SUGGESTED','DRAFT','APPROVED'].includes(i.state);
+      const btn=(a,l,primary)=>`<button onclick="clIssuer('${k}','${a}')" class="t-12 font-semibold h-8 px-3 rounded-[6px] ${primary?'text-white':'border bg-white'}" style="${primary?'background:var(--signal)':'border-color:var(--hairline)'}">${l}</button>`;
+      const acts = i.state==='SUGGESTED'||i.state==='DRAFT' ? btn('approve','✓ אשר לשליחה',true)+btn('edit','שמור טיוטה')+btn('dismiss','בטל')
+        : i.state==='APPROVED' ? btn('sent','סמן: שלחתי בערוץ הרשמי',true)+btn('edit','חזור לעריכה')+btn('dismiss','בטל')
+        : i.state==='SENT' ? btn('answer','קלוט תשובה רשמית',true)
+        : i.state==='ANSWERED' ? btn('resolve','✓ התשובה פותרת')+btn('ambiguous','נשארה עמומה')
+        : i.state==='WINDOW_CLOSED' ? btn('dismiss','תעד כסיכון וסגור') : '';
+      return `<div class="rounded-[8px] border p-4 mb-2.5 bg-white" style="border-color:var(--hairline)">
+        <div class="flex items-center justify-between gap-2 mb-2"><div class="t-11 text-black/55">בגלל: ${esc(i.label)}</div><span class="t-11 font-semibold px-2 h-6 inline-flex items-center rounded-full" style="background:${st[2]};color:${st[1]}">${st[0]}</span></div>
+        ${editable?`<textarea id="cl-q-${k.replace(/[^\w]/g,'_')}" rows="3" class="w-full t-13 p-2.5 rounded-[6px] border" style="border-color:var(--hairline)">${esc(i.question)}</textarea>`:`<div class="t-13 whitespace-pre-line rounded-[6px] p-2.5" style="background:#FAFAF8">${esc(i.question)}</div>`}
+        ${i.sent_note?`<div class="t-11 text-black/55 mt-1.5">נשלח: ${esc(i.sent_note)}${i.sent_at?` · ${new Date(i.sent_at).toLocaleDateString('he-IL')}`:''}</div>`:''}
+        ${i.answer_text?`<div class="t-12 mt-2 rounded-[6px] p-2.5" style="background:oklch(0.62 0.15 155 / 0.06)"><b>תשובת עורך המכרז:</b> ${esc(i.answer_text)}</div>${i.state==='RESOLVED'?'<div class="t-11 text-black/50 mt-1">עדכן את הדרישה/הפרופיל בהתאם לתשובה — המערכת לא משנה את תנאי המכרז אוטומטית.</div>':''}`:''}
+        ${why(i)}<div class="flex flex-wrap gap-1.5 mt-2">${acts}</div></div>`;
+    };
+    const closed=(d.closed||[]).filter(c=>c.target==='internal'&&c.gate_before);
+    el.innerHTML=`<div class="rounded-[8px] border bg-white card-soft p-5 mb-4" style="border-color:var(--hairline)"><h2 class="t-18 font-semibold">הבהרות</h2><p class="t-12 text-black/55 mt-0.5">שאלות שיכולות לשנות את ההחלטה קודם. שאלה לעורך המכרז לא נשלחת מכאן — אתה מאשר, שולח בערוץ הרשמי, ומתעד.</p><div class="t-12 mt-2">${winLine}</div><div id="cl-flash">${flash}</div></div>
+      <h3 class="t-15 font-semibold mb-2">שאלות בתוך החברה <span class="text-black/40">· ${internal.length}</span></h3>
+      ${internal.map(intCard).join('')||'<div class="t-12 text-black/45 mb-4">אין שאלות פתוחות לחברה.</div>'}
+      <div class="flex items-center justify-between mt-6 mb-2"><h3 class="t-15 font-semibold">שאלות לעורך המכרז <span class="text-black/40">· ${issuer.length}</span></h3>${issuer.some(i=>['APPROVED','SENT'].includes(i.state))?`<a href="/api/tenders/${encodeURIComponent(id)}/clarifications/export.txt" class="t-12 font-semibold" style="color:var(--signal)">⬇ ייצוא שאלות מאושרות</a>`:''}</div>
+      ${issuer.map(isCard).join('')||'<div class="t-12 text-black/45">אין סעיפים עמומים שדורשים שאלה רשמית.</div>'}
+      ${closed.length?`<details class="mt-5"><summary class="t-12 font-medium cursor-pointer text-black/55">הוכרעו בבירור (${closed.length})</summary><ul class="mt-2 space-y-1">${closed.map(c=>`<li class="t-12 text-black/65">✓ ${esc(c.label)} — תשובה: "${esc(c.answer)}" · ההמלצה: ${c.gate_before} → <b>${c.gate_after}</b></li>`).join('')}</ul></details>`:''}`;
+  }
+  async function clAnswer(key, value){
+    if(!String(value||'').trim()){ alert('נדרשת תשובה'); return; }
+    let r; try{ r=await window.API.answerClarification(window.currentTenderId, key, value); }catch(e){ alert('שמירה נכשלה: '+e.message); return; }
+    // ההודעה נשמרת ומוצגת בתוך renderClarifications (שרץ אסינכרונית מתוך renderAnalysis)
+    window._clFlash=`<div class="mt-3 t-13 font-semibold rounded-[6px] p-2.5" style="background:var(--signal-8);color:var(--signal)">נשמר. ההמלצה: ${r.gate_before} → ${r.gate_after}${r.gate_before===r.gate_after?' (ללא שינוי)':''}</div>`;
+    await renderAnalysis(); anTab('clarify');
+  }
+  async function clIssuer(key, action){
+    const ta=document.getElementById('cl-q-'+key.replace(/[^\w]/g,'_'));
+    let text=ta?ta.value:null, note=null;
+    if(action==='edit'||action==='approve'){ if(ta&&ta.value.trim()!==(window._cl[key]||{}).question){ try{ await window.API.issuerClarification(window.currentTenderId,key,'edit',{text:ta.value}); }catch(e){ alert(e.message); return; } } if(action==='edit'){ renderClarifications(window.currentTenderId); return; } }
+    if(action==='sent'){ note=prompt('איך ומתי נשלחה השאלה? (למשל: מייל לוועדת המכרזים 12/10, מס׳ פנייה...)'); if(!note) return; }
+    if(action==='answer'){ text=prompt('הדבק את נוסח התשובה הרשמית שפורסמה:'); if(!text) return; }
+    try{ await window.API.issuerClarification(window.currentTenderId,key,action,{text,note}); }catch(e){ alert(e.message); return; }
+    renderClarifications(window.currentTenderId);
+  }
+  window.renderClarifications=renderClarifications; window.clAnswer=clAnswer; window.clIssuer=clIssuer;
+
   function anSetCount(id,n,warnIfAny){ const el=document.getElementById(id); if(!el) return; el.textContent=n; el.className='an-tc'+(n?(warnIfAny?' warn':''):' zero'); }
   function anTab(name){
     document.querySelectorAll('#an-tabs .an-tab').forEach(b=>b.classList.toggle('active', b.dataset.antab===name));
@@ -1032,6 +1094,7 @@
         <button type="button" data-antab="tailoring" onclick="anTab('tailoring')" class="an-tab">התאמה תפורה<span id="an-tc-tl" class="an-tc zero">0</span></button>
         <button type="button" data-antab="thresholds" onclick="anTab('thresholds')" class="an-tab">תנאי סף<span id="an-tc-th" class="an-tc zero">0</span></button>
         <button type="button" data-antab="risks" onclick="anTab('risks')" class="an-tab">דגלים אדומים<span id="an-tc-rf" class="an-tc zero">0</span></button>
+        <button type="button" data-antab="clarify" onclick="anTab('clarify')" class="an-tab">הבהרות<span id="an-tc-cl" class="an-tc zero">0</span></button>
       </div>
 
       <div class="an-panel active" data-anpanel="overview">
@@ -1051,6 +1114,7 @@
         <div id="an-redflags" class="mb-6"></div>
         <div><div class="rounded-[8px] border border-dashed p-6" style="border-color:#D6D6CE;background:rgba(255,255,255,0.6)"><div class="flex items-start gap-4"><div class="w-10 h-10 rounded-[6px] bg-black/[0.04] flex items-center justify-center shrink-0 text-black/50">🔒</div><div class="flex-1"><div class="flex items-center gap-2 mb-1.5"><h3 class="t-15 font-semibold">ניתוח מתחרים</h3><span class="t-10 font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full" style="background:var(--signal-8);color:var(--signal)">בקרוב</span></div><p class="t-12 text-black/55 max-w-[640px]">ניתוח מתחרים וסיכויי זכייה מבוסס נתוני שוק — יתווסף בשלב הבא (Phase 2).</p></div></div></div></div>
       </div>
+      <div class="an-panel" data-anpanel="clarify"><div id="an-clarify"></div></div>
       <!-- חבילת הגשה (S3): העלאת הטופס הרשמי → מילוי אוטומטי + צ׳קליסטים → PDF אחד -->
       <div class="rounded-[8px] border bg-white card-soft p-5 mb-6" style="border-color:var(--hairline)">
         <div class="flex items-start gap-4">

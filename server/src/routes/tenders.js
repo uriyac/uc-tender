@@ -10,6 +10,7 @@ import { tailorRequirements } from '../flex/tailor.js';
 import { kbForClaims, cleanActivities } from '../flex/activities.js';
 import { requirementStatuses, certExpiryChecks, computeGate, applyEvidence } from '../qualification/index.js';
 import { locateAll } from '../lib/sourceSpan.js';
+import { detectClarifications, issuerTransition, windowState } from '../clarify/index.js';
 import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
 import { dirname, join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +58,7 @@ r.delete('/', (req, res) => {
     requirements: req.store.clear('requirements'),
     drafts: req.store.clear('drafts'),
     outcomes: req.store.clear('outcomes'),
+    clarifications: req.store.clear('clarifications'),
   };
   res.json({ ok: true, removed });
 });
@@ -110,6 +112,7 @@ r.post('/', upload.single('file'), async (req, res) => {
     file_path: filePath, file_name: fileName,
     // סיכום מובנה (B11)
     deadline: parsed.deadline || null,
+    question_deadline: parsed.question_deadline || null, // מועד אחרון לשאלות הבהרה (חלון שאלות לעורך המכרז)
     guarantee: parsed.guarantee || null,
     classification: parsed.classification || null,
     min_turnover: parsed.min_turnover || null,
@@ -160,10 +163,145 @@ r.get('/:id/analysis', async (req, res) => {
     // מכרז seed בלי דרישות שמורות — ניתוח דמו קונסיסטנטי עם ה-match_score
     return res.json({ tender: t, matchScore: t.match_score, met: [], gaps: [], fails: [], thresholds: { checks: [] }, redFlags: { flags: [] }, demo: true });
   }
+  const a = await assess(req.store, t, reqs);
+  // S4.2 — זיכרון-מפרסם: אם התמודדנו מול המפרסם הזה בעבר (מעל הסף), מצרפים תובנה לבאנר.
+  const issuer_insight = issuerInsight(t.issuer, req.store.all('tenders'), req.store.all('outcomes'));
+  const { file_path, raw_text, ...pub } = t; // לא חושפים נתיב דיסק; הטקסט הגולמי לא נדרש בחזית
+  res.json({
+    tender: { ...pub, gate: a.gate.status, has_file: !!(file_path && existsSync(join(TENDER_DIR, basename(file_path)))) }, ...a.analysis,
+    thresholds: { checks: a.checks }, redFlags: a.redFlags, issuer_insight,
+    gate: a.gate, requirement_statuses: a.requirements, expiry_warnings: a.expiryWarnings,
+    sources: a.sources,
+  });
+});
+
+// ============ הבהרות (clarify/index.js) — פנימיות + לעורך המכרז ============
+// הזיהוי מחושב בכל קריאה מהשער; הרשומה השמורה (collection 'clarifications', לפי key) מחזיקה
+// תשובות, טיוטות ומצב — כך שאלה ש"נסגרה" (התשובה פתרה את התנאי) נשארת בהיסטוריה.
+async function clarificationsFor(store, t) {
+  const reqs = store.all('requirements').filter((x) => x.tender_id === t.id);
+  const a = await assess(store, t, reqs);
+  const detected = detectClarifications(a.gate.items, { questionDeadline: t.question_deadline });
+  const stored = store.all('clarifications').filter((c) => c.tender_id === t.id);
+  const byKey = new Map(stored.map((c) => [c.key, c]));
+  const win = windowState(t.question_deadline);
+  const items = detected.map((d) => {
+    const s = byKey.get(d.key);
+    const merged = { ...d, ...(s ? { record_id: s.id, answer: s.answer, answered_at: s.answered_at, history: s.history || [] } : {}) };
+    if (d.target === 'issuer') {
+      merged.state = s?.state || d.state;
+      if (!win.open && !['SENT', 'ANSWERED', 'RESOLVED', 'AMBIGUOUS', 'DISMISSED'].includes(merged.state)) merged.state = 'WINDOW_CLOSED';
+      if (s?.question) merged.question = s.question; // טיוטה שנערכה
+      Object.assign(merged, { sent_at: s?.sent_at, sent_note: s?.sent_note, answer_text: s?.answer_text });
+    }
+    return merged;
+  });
+  // שאלות שנענו/טופלו ואינן מזוהות עוד (התנאי הוכרע) — נשארות להיסטוריה
+  const live = new Set(detected.map((d) => d.key));
+  const closed = stored.filter((s) => !live.has(s.key)).map((s) => ({ ...s, closed: true }));
+  return { a, items, closed, window: win };
+}
+
+const pubGate = (g) => ({ status: g.status, reason: g.reason });
+
+// GET /api/tenders/:id/clarifications
+r.get('/:id/clarifications', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  const { a, items, closed, window } = await clarificationsFor(req.store, t);
+  res.json({ gate: pubGate(a.gate), window, items, closed });
+});
+
+// רשומת הבהרה לפי key; כל פעולה נכנסת ל-history (מי, מתי, מה) — audit של השאלה.
+function upsertClar(store, t, key, { event, ...patch }) {
+  const cur = store.all('clarifications').find((c) => c.tender_id === t.id && c.key === key);
+  if (cur) return store.update('clarifications', cur.id, { ...patch, history: [...(cur.history || []), event].filter(Boolean) });
+  return store.insert('clarifications', { id: store.uid('clar'), tender_id: t.id, key, ...patch, history: [event].filter(Boolean) });
+}
+
+// POST /api/tenders/:id/clarifications/answer { key, value } — תשובה לשאלה פנימית.
+//   שאלת פרופיל (מחזור/סיווג/...) → מעדכן את השדה בפרופיל (ומבטל ראיה שקושרה לערך הקודם).
+//   שאלת כן/לא על דרישה → "כן" = מוצהר (met_claimed, לא מאומת!) · "לא" = לא מתקיים · "לא יודע" = נשאר פתוח.
+//   מחזיר את השער לפני ← אחרי.
+r.post('/:id/clarifications/answer', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  const { key, value } = req.body || {};
+  const before = await clarificationsFor(req.store, t);
+  const item = before.items.find((i) => i.key === key && i.target === 'internal');
+  if (!item) return res.status(404).json({ error: 'שאלה לא נמצאה (ייתכן שכבר הוכרעה)' });
+  const v = String(value ?? '').trim();
+  if (!v) return res.status(400).json({ error: 'נדרשת תשובה' });
+
+  if (item.profile_field) {
+    const val = item.answer_kind === 'yes_no' ? (v === 'yes' ? 'כן' : v === 'no' ? 'לא' : null) : v;
+    if (val != null) {
+      const co = req.store.company();
+      const patch = { [item.profile_field]: val };
+      if (co.evidence?.[item.topic] && String(co[item.profile_field] ?? '') !== val) {
+        const ev = { ...co.evidence }; delete ev[item.topic]; patch.evidence = ev;
+      }
+      req.store.updateCompany(patch);
+    }
+  } else if (item.requirement_id && item.answer_kind === 'yes_no') {
+    if (v === 'yes') req.store.update('requirements', item.requirement_id, { company_answer: 'yes', manual_text: 'החברה אישרה עמידה בבירור פנימי (הצהרה — ממתין לראיה)' });
+    else if (v === 'no') req.store.update('requirements', item.requirement_id, { company_answer: 'no', manual_text: null });
+  }
+
+  const after = await clarificationsFor(req.store, t);
+  upsertClar(req.store, t, key, {
+    target: 'internal', label: item.label, question: item.question, answer: v, answered_at: new Date().toISOString(),
+    gate_before: before.a.gate.status, gate_after: after.a.gate.status,
+    event: { at: new Date().toISOString(), by: req.user?.id || null, action: 'answer', value: v },
+  });
+  res.json({ ok: true, gate_before: before.a.gate.status, gate_after: after.a.gate.status, gate: pubGate(after.a.gate) });
+});
+
+// POST /api/tenders/:id/clarifications/issuer { key, action, text?, note? } — מחזור חיים של שאלה לעורך המכרז.
+// אין שליחה אוטומטית: "sent" רק מתעד שאדם שלח בערוץ הרשמי (עם הערה/אסמכתה).
+r.post('/:id/clarifications/issuer', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  const { key, action, text, note } = req.body || {};
+  const { items, window } = await clarificationsFor(req.store, t);
+  const item = items.find((i) => i.key === key && i.target === 'issuer');
+  if (!item) return res.status(404).json({ error: 'שאלה לא נמצאה' });
+  let next;
+  try { next = issuerTransition(item.state, action, { windowOpen: window.open }); }
+  catch (e) { return res.status(409).json({ error: e.message }); }
+  if (action === 'sent' && !String(note || '').trim()) return res.status(400).json({ error: 'נדרש תיעוד השליחה (ערוץ / אסמכתה)' });
+  if (action === 'answer' && !String(text || '').trim()) return res.status(400).json({ error: 'נדרש נוסח התשובה הרשמית' });
+  const now = new Date().toISOString();
+  const patch = { target: 'issuer', label: item.label, state: next,
+    event: { at: now, by: req.user?.id || null, action, from: item.state, to: next, ...(note ? { note } : {}) } };
+  if (action === 'edit') patch.question = String(text || '').trim() || item.question;
+  if (action === 'approve' || action === 'sent') patch.question = item.question;
+  if (action === 'sent') Object.assign(patch, { sent_at: now, sent_note: String(note).trim() });
+  if (action === 'answer') patch.answer_text = String(text).trim();
+  res.json({ ok: true, state: next, record: upsertClar(req.store, t, key, patch) });
+});
+
+// GET /api/tenders/:id/clarifications/export.txt — שאלות מאושרות לעורך המכרז, ממוספרות, להעתקה לערוץ הרשמי.
+r.get('/:id/clarifications/export.txt', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  const { items } = await clarificationsFor(req.store, t);
+  const qs = items.filter((i) => i.target === 'issuer' && ['APPROVED', 'SENT'].includes(i.state));
+  const body = [`שאלות הבהרה — ${t.name} (${t.code})`, t.question_deadline ? `מועד אחרון לשאלות: ${t.question_deadline}` : '', '',
+    ...qs.map((q, i) => `${i + 1}. ${q.question}`)].join('\n');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('שאלות-הבהרה.txt')}`);
+  res.send('﻿' + body);
+});
+
+// הערכה מלאה של מכרז: ניתוח + בדיקות-סף + דגלים + שער כשירות + מקורות. משותף לניתוח ולהבהרות.
+// שער הכשירות מחושב מחדש בכל קריאה (פרופיל/השלמות/תשובות עשויים להשתנות) ונשמר על המכרז,
+// כדי שה-snapshot בעת סגירה יינעל על ההחלטה העדכנית.
+export async function assess(store, t, reqs) {
   const eng = engine();
   const [analysis, thresholds, redFlags] = await Promise.all([
-    eng.analyzeMatch(reqs, kbForClaims(req.store.knowledge())),
-    eng.checkThresholds(t.raw_text || '', req.store.company()),
+    eng.analyzeMatch(reqs, kbForClaims(store.knowledge())),
+    eng.checkThresholds(t.raw_text || '', store.company()),
     eng.checkRedFlags(t.raw_text || ''),
   ]);
   // העשרת כל פער במצב ההשלמה הידנית (manual_text) כדי שמסך הניתוח יוכל לטפל בו ולהציג "טופל"
@@ -172,12 +310,8 @@ r.get('/:id/analysis', async (req, res) => {
     ...g,
     manualText: (g.id && byId[g.id] && byId[g.id].manual_text) || null,
   }));
-  // S4.2 — זיכרון-מפרסם: אם התמודדנו מול המפרסם הזה בעבר (מעל הסף), מצרפים תובנה לבאנר.
-  const issuer_insight = issuerInsight(t.issuer, req.store.all('tenders'), req.store.all('outcomes'));
-  // שער הכשירות — מחושב מחדש בכל ניתוח (פרופיל/השלמות/אישורים עשויים להשתנות), ונשמר על המכרז
-  // כדי שה-snapshot בעת סגירה יינעל על ההחלטה העדכנית.
-  const q = qualify(req.store, t, reqs, analysis, thresholds.checks || []);
-  if (t.gate !== q.gate.status) req.store.update('tenders', t.id, { gate: q.gate.status });
+  const q = qualify(store, t, reqs, analysis, thresholds.checks || []);
+  if (t.gate !== q.gate.status) store.update('tenders', t.id, { gate: q.gate.status });
   // מקור לכל דרישה (עמוד + ציטוט) — מחושב בקוד מול הטקסט המקורי, לא מהמנוע. ראה lib/sourceSpan.js.
   const src = locateAll(reqs, t.raw_text || '');
   // בדיקת-סף (מחזור/סיווג/...) מקבלת את מקור הדרישה בעלת אותו נושא — הסעיף במכרז שממנו נגזרה.
@@ -192,15 +326,13 @@ r.get('/:id/analysis', async (req, res) => {
   analysis.gaps = (analysis.gaps || []).map(withSrc);
   q.gate.items = q.gate.items.map(withSrc);
   q.gate.blocking = q.gate.blocking.map(withSrc);
-  const { file_path, raw_text, ...pub } = t; // לא חושפים נתיב דיסק; הטקסט הגולמי לא נדרש בחזית
-  res.json({
-    tender: { ...pub, gate: q.gate.status, has_file: !!(file_path && existsSync(join(TENDER_DIR, basename(file_path)))) }, ...analysis,
-    thresholds: { checks: q.checks.map((c) => (c.topic && srcByTopic.has(c.topic) ? { ...c, source: srcByTopic.get(c.topic) } : c)) },
-    redFlags, issuer_insight,
-    gate: q.gate, requirement_statuses: q.requirements.map(withSrc), expiry_warnings: q.expiryWarnings,
+  return {
+    analysis, redFlags, gate: q.gate, expiryWarnings: q.expiryWarnings,
+    requirements: q.requirements.map(withSrc),
+    checks: q.checks.map((c) => (c.topic && srcByTopic.has(c.topic) ? { ...c, source: srcByTopic.get(c.topic) } : c)),
     sources: { located: src.located, total: src.total, has_pages: src.hasPages },
-  });
-});
+  };
+}
 
 // GET /api/tenders/:id/mapping — מיפוי דרישה→מקור, כולל השלמות ידניות
 r.get('/:id/mapping', async (req, res) => {

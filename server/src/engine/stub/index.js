@@ -234,11 +234,16 @@ export function parseTender(rawText) {
   const turn = text.match(new RegExp('מחזור[^\\n]{0,45}?' + money.source));
   const classM = text.match(/סיווג קבלני\s*[א-ת]?-?\d?/);
   const durM = text.match(/(\d+)\s*(חודשים|חודש|שנים|שנה)/);
-  const dateM = text.match(/(מועד אחרון|מועד הגשה|להגשה עד|הגשה עד)[^\d]{0,15}(\d{1,2}[./]\d{1,2}[./]\d{2,4})/);
+  // מועד אחרון לשאלות הבהרה — קודם, ומוסר מהטקסט כדי ש"מועד אחרון להגשת שאלות" לא ייקרא כמועד ההגשה
+  const DATE = '(\\d{1,2}[./]\\d{1,2}[./]\\d{2,4})';
+  const qRe = new RegExp(`(שאלות הבהרה|הגשת שאלות|לשאלות|שאלות יש להגיש)[^\\d\\n]{0,30}${DATE}`);
+  const qM = text.match(qRe);
+  const dateM = text.replace(qRe, ' ').match(/(מועד אחרון|מועד הגשה|להגשה עד|הגשה עד)[^\d]{0,15}(\d{1,2}[./]\d{1,2}[./]\d{2,4})/);
 
   return {
     code, name, issuer,
     deadline: dateM ? dateM[2] : null,
+    question_deadline: qM ? qM[2] : null,
     guarantee: guar ? guar[0].replace(/\s+/g, ' ').trim() : null,
     classification: classM ? classM[0].trim() : null,
     min_turnover: turn ? turn[0].replace(/\s+/g, ' ').trim() : null,
