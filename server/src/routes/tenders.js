@@ -8,6 +8,14 @@ import { analyzeForm, buildSubmissionPacket } from '../packet/index.js';
 import { REASON_CODES, isValidReasonCode, snapshotPrediction, issuerInsight } from '../learning/index.js';
 import { tailorRequirements } from '../flex/tailor.js';
 import { requirementStatuses, certExpiryChecks, computeGate, applyEvidence } from '../qualification/index.js';
+import { locateAll } from '../lib/sourceSpan.js';
+import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
+import { dirname, join, basename, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// קובצי מכרז מקוריים — נשמרים כדי לפתוח את המקור בעמוד של הדרישה. נפרד מ-uploads/ של מסמכי החברה.
+const TENDER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'uploads', 'tenders');
+mkdirSync(TENDER_DIR, { recursive: true });
 
 // שער הכשירות: בדיקות-סף (+ תוקף אישורים מול מועד ההגשה) + סטטוסי דרישות → gate מחושב.
 // ההחלטה נגזרת בקוד מהסטטוסים — לא מהמנוע ולא מהציון. ראה qualification/index.js.
@@ -55,10 +63,13 @@ r.delete('/', (req, res) => {
 // POST /api/tenders — הזנת מכרז (קובץ בשדה "file" או טקסט מודבק ב-body.text)
 r.post('/', upload.single('file'), async (req, res) => {
   let text = (req.body?.text || '').trim();
-  let ocrUsed = false, ocrConfidence = null;
+  let ocrUsed = false, ocrConfidence = null, filePath = null, fileName = null;
 
   if (!text && req.file) {
     const original = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    fileName = original;
+    filePath = `${Date.now()}_${original}`.replace(/[^\w.֐-׿ -]/g, '_');
+    try { writeFileSync(join(TENDER_DIR, filePath), req.file.buffer); } catch { filePath = null; }
     const ext = await extractText(req.file.buffer, original);
     if (ext.error) return res.status(422).json({ error: ext.error });
     text = ext.rawText;
@@ -94,6 +105,8 @@ r.post('/', upload.single('file'), async (req, res) => {
     red_flags_high: flags.filter((f) => f.severity === 'high').length,
     // מקור: OCR (מכרז סרוק) — לשקיפות בחזית
     ocr: ocrUsed, ocr_confidence: ocrConfidence,
+    // הקובץ המקורי (אם הועלה קובץ) — לפתיחת המקור בעמוד הדרישה
+    file_path: filePath, file_name: fileName,
     // סיכום מובנה (B11)
     deadline: parsed.deadline || null,
     guarantee: parsed.guarantee || null,
@@ -123,6 +136,20 @@ r.get('/:id', (req, res) => {
   res.json(t);
 });
 
+// GET /api/tenders/:id/file — קובץ המכרז המקורי (inline; PDF נפתח בדפדפן, אפשר #page=N)
+const TENDER_MIME = { pdf: 'application/pdf', txt: 'text/plain; charset=utf-8',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+r.get('/:id/file', (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t || !t.file_path) return res.status(404).json({ error: 'אין קובץ מקור למכרז זה' });
+  const safe = basename(t.file_path); // basename בלבד → מניעת path traversal
+  const full = join(TENDER_DIR, safe);
+  if (!existsSync(full)) return res.status(404).json({ error: 'הקובץ אינו זמין עוד' });
+  res.setHeader('Content-Type', TENDER_MIME[extname(safe).slice(1).toLowerCase()] || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(t.file_name || safe)}`);
+  createReadStream(full).on('error', () => res.sendStatus(500)).pipe(res);
+});
+
 // GET /api/tenders/:id/analysis — ניתוח התאמה מול המאגר
 r.get('/:id/analysis', async (req, res) => {
   const t = req.store.find('tenders', req.params.id);
@@ -150,10 +177,27 @@ r.get('/:id/analysis', async (req, res) => {
   // כדי שה-snapshot בעת סגירה יינעל על ההחלטה העדכנית.
   const q = qualify(req.store, t, reqs, analysis, thresholds.checks || []);
   if (t.gate !== q.gate.status) req.store.update('tenders', t.id, { gate: q.gate.status });
+  // מקור לכל דרישה (עמוד + ציטוט) — מחושב בקוד מול הטקסט המקורי, לא מהמנוע. ראה lib/sourceSpan.js.
+  const src = locateAll(reqs, t.raw_text || '');
+  // בדיקת-סף (מחזור/סיווג/...) מקבלת את מקור הדרישה בעלת אותו נושא — הסעיף במכרז שממנו נגזרה.
+  const srcByTopic = new Map();
+  for (const rs of q.requirements) if (rs.topic && !srcByTopic.has(rs.topic) && src.byId.has(rs.id)) srcByTopic.set(rs.topic, src.byId.get(rs.id));
+  const withSrc = (x) => {
+    if (!x) return x;
+    if (x.id && src.byId.has(x.id)) return { ...x, source: src.byId.get(x.id) };
+    if (x.kind === 'threshold' && x.topic && srcByTopic.has(x.topic)) return { ...x, source: srcByTopic.get(x.topic) };
+    return x;
+  };
+  analysis.gaps = (analysis.gaps || []).map(withSrc);
+  q.gate.items = q.gate.items.map(withSrc);
+  q.gate.blocking = q.gate.blocking.map(withSrc);
+  const { file_path, raw_text, ...pub } = t; // לא חושפים נתיב דיסק; הטקסט הגולמי לא נדרש בחזית
   res.json({
-    tender: { ...t, gate: q.gate.status }, ...analysis,
-    thresholds: { checks: q.checks }, redFlags, issuer_insight,
-    gate: q.gate, requirement_statuses: q.requirements, expiry_warnings: q.expiryWarnings,
+    tender: { ...pub, gate: q.gate.status, has_file: !!(file_path && existsSync(join(TENDER_DIR, basename(file_path)))) }, ...analysis,
+    thresholds: { checks: q.checks.map((c) => (c.topic && srcByTopic.has(c.topic) ? { ...c, source: srcByTopic.get(c.topic) } : c)) },
+    redFlags, issuer_insight,
+    gate: q.gate, requirement_statuses: q.requirements.map(withSrc), expiry_warnings: q.expiryWarnings,
+    sources: { located: src.located, total: src.total, has_pages: src.hasPages },
   });
 });
 

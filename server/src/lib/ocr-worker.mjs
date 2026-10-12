@@ -45,9 +45,10 @@ async function main() {
 
   const worker = await createWorker('heb', 1, opts);
   let text = '', confSum = 0, confN = 0;
-  for (const img of images) {
+  for (const [i, img] of images.entries()) {
     const { data } = await worker.recognize(img);
-    text += (data.text || '').trim() + '\n\n';
+    // סימון סוף-עמוד בפורמט של pdf-parse — כדי שאיתור המקור (sourceSpan.js) ידע באיזה עמוד כל דרישה
+    text += (data.text || '').trim() + `\n\n-- ${i + 1} of ${images.length} --\n\n`;
     if (typeof data.confidence === 'number') { confSum += data.confidence; confN++; }
   }
   await worker.terminate();

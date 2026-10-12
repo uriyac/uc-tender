@@ -71,7 +71,7 @@ async function extractLegacy(buffer, filename, kind) {
       // החבילות הכבדות (tesseract/pdfjs/canvas) עד שבאמת נדרש, וכדי להישבר בחן אם חסרות.
       const { ocrPdf } = await import('./ocr.js');
       const ocr = await ocrPdf(buffer);
-      if (ocr.text && ocr.text.replace(/\s+/g, '').length >= 20) {
+      if (ocr.text && ocr.text.replace(/--\s*\d+\s+of\s+\d+\s*--/g, '').replace(/\s+/g, '').length >= 20) {
         return { kind, rawText: ocr.text, ocr: true, ocrConfidence: ocr.confidence };
       }
       return { kind, rawText: '', error: 'לא הופק טקסט מה-PDF (ככל הנראה סרוק/תמונה). ' + (ocr.error ? 'OCR נכשל: ' + ocr.error : 'נדרש OCR.') };
