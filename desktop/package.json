@@ -23,7 +23,7 @@
       "preload.cjs"
     ],
     "extraResources": [
-      { "from": "../server", "to": "server", "filter": ["**/*", "!**/app.sqlite*", "!**/backups/**", "!**/tools/out/**"] },
+      { "from": "../server", "to": "server", "filter": ["**/*", "!**/app.sqlite*", "!**/backups/**", "!**/tools/out/**", "!uploads/**", "!.env", "!*.log"] },
       { "from": "../prototype", "to": "prototype" }
     ],
     "win": { "target": ["nsis"] },

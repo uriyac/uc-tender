@@ -9,9 +9,12 @@ import { fileURLToPath } from 'node:url';
 import { engine } from '../engine/index.js';
 import { extractText } from '../lib/extractText.js';
 import { cleanActivities } from '../flex/activities.js';
+import { config } from '../config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const UPLOAD_DIR = join(__dirname, '..', '..', 'uploads');
+// באפליקציית דסקטופ (config.dataDir = userData) הקבצים נשמרים ליד ה-DB — לא בתיקיית התוכנה,
+// שמוחלפת בכל עדכון (ועשויה להיות read-only). בפיתוח: server/uploads כמקודם.
+export const UPLOAD_DIR = config.dataDir ? join(config.dataDir, 'uploads') : join(__dirname, '..', '..', 'uploads');
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });

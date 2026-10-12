@@ -14,9 +14,12 @@ import { detectClarifications, issuerTransition, windowState } from '../clarify/
 import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
 import { dirname, join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config } from '../config.js';
 
 // קובצי מכרז מקוריים — נשמרים כדי לפתוח את המקור בעמוד של הדרישה. נפרד מ-uploads/ של מסמכי החברה.
-const TENDER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'uploads', 'tenders');
+const TENDER_DIR = config.dataDir
+  ? join(config.dataDir, 'uploads', 'tenders') // דסקטופ: ליד ה-DB, שורד עדכוני תוכנה
+  : join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'uploads', 'tenders');
 mkdirSync(TENDER_DIR, { recursive: true });
 
 // שער הכשירות: בדיקות-סף (+ תוקף אישורים מול מועד ההגשה) + סטטוסי דרישות → gate מחושב.
