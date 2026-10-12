@@ -49,6 +49,9 @@ export async function extractKnowledge(rawText, meta = {}) {
       'אל תמציא שמות, שנים, כמויות או אישורים. אם אין עדות — החזר מערכים ריקים. החזר JSON בלבד.',
     instruction: `חלץ מהמסמך (שם קובץ: "${meta.filename || ''}") פרויקטים ואישורים. ` +
       'לכל פרויקט: שם, שנה (אם מצוינת), וממדים ספציפיים (כמויות, תחומים, טכנולוגיות) שמופיעים בטקסט. ' +
+      'וגם פעילויות שבוצעו בפועל בפרויקט (למשל "ניתוח נתוני סקר", "ניהול ספקי מדיה") — כל אחת עם ציטוט קצר מהמסמך (quote) ' +
+      'ו-performed_by: company רק אם כתוב במפורש שהחברה עצמה ביצעה; subcontractor / partner / employee אם כך כתוב; ' +
+      'אחרת unknown. אל תניח שהחברה ביצעה פעילות רק משום שהיא מופיעה בפרויקט. ' +
       'לכל אישור: שם ותוקף (אם מצוין). כל פרט חייב להיות מעוגן בטקסט.',
     dataLabel: 'תוכן המסמך',
     data: rawText,
@@ -63,8 +66,19 @@ export async function extractKnowledge(rawText, meta = {}) {
               name: { type: 'string' },
               year: { type: ['string', 'null'] },
               dimensions: { type: 'array', items: { type: 'string' } },
+              activities: {
+                type: 'array', items: {
+                  type: 'object', additionalProperties: false,
+                  properties: {
+                    text: { type: 'string' },
+                    performed_by: { type: 'string', enum: ['company', 'employee', 'subcontractor', 'partner', 'unknown'] },
+                    quote: { type: 'string' },
+                  },
+                  required: ['text', 'performed_by', 'quote'],
+                },
+              },
             },
-            required: ['name', 'year', 'dimensions'],
+            required: ['name', 'year', 'dimensions', 'activities'],
           },
         },
         certifications: {

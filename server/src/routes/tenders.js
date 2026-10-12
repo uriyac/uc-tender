@@ -7,6 +7,7 @@ import { extractText } from '../lib/extractText.js';
 import { analyzeForm, buildSubmissionPacket } from '../packet/index.js';
 import { REASON_CODES, isValidReasonCode, snapshotPrediction, issuerInsight } from '../learning/index.js';
 import { tailorRequirements } from '../flex/tailor.js';
+import { kbForClaims, cleanActivities } from '../flex/activities.js';
 import { requirementStatuses, certExpiryChecks, computeGate, applyEvidence } from '../qualification/index.js';
 import { locateAll } from '../lib/sourceSpan.js';
 import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
@@ -80,7 +81,7 @@ r.post('/', upload.single('file'), async (req, res) => {
   // פענוח + ניתוח + דגלים אדומים (הספירה נשמרת לתצוגת סיכון בכרטיס — S2.1)
   const eng = engine();
   const parsed = await eng.parseTender(text);
-  const kb = req.store.knowledge();
+  const kb = kbForClaims(req.store.knowledge());
   const [analysis, redFlags, thresholds] = await Promise.all([
     eng.analyzeMatch(parsed.requirements, kb),
     eng.checkRedFlags(text),
@@ -161,7 +162,7 @@ r.get('/:id/analysis', async (req, res) => {
   }
   const eng = engine();
   const [analysis, thresholds, redFlags] = await Promise.all([
-    eng.analyzeMatch(reqs, req.store.knowledge()),
+    eng.analyzeMatch(reqs, kbForClaims(req.store.knowledge())),
     eng.checkThresholds(t.raw_text || '', req.store.company()),
     eng.checkRedFlags(t.raw_text || ''),
   ]);
@@ -258,7 +259,7 @@ r.post('/:id/outcome', upload.array('files'), async (req, res) => {
     const learned = await engine().extractKnowledge(rawText, { kind, filename: original });
     for (const p of learned.projects) {
       req.store.insert('projects', {
-        id: req.store.uid('p'), name: p.name, year: p.year || null, dimensions: p.dimensions || [],
+        id: req.store.uid('p'), name: p.name, year: p.year || null, dimensions: p.dimensions || [], activities: cleanActivities(p.activities, req.store),
         source_doc_id: null,
         // ראיה מנצחת: תיוג-מקור לשימוש בתפירה/טיוטה עתידית (אפס-הזיות — מעוגן בהגשה אמיתית)
         source: isWin ? 'הגשה זוכה' : 'הגשה',
@@ -336,7 +337,7 @@ r.post('/:id/packet', upload.single('file'), async (req, res) => {
 
 // מיפוי + מיזוג השלמות ידניות (משמש גם ביצירת הטיוטה). א-סינכרוני (מנוע claude).
 export async function buildMerged(db, reqs) {
-  const mapping = await engine().buildMapping(reqs, db.knowledge());
+  const mapping = await engine().buildMapping(reqs, kbForClaims(db.knowledge()));
   return mapping.map((m, i) => ({
     ...m,
     id: reqs[i].id,

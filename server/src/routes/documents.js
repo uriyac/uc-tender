@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { engine } from '../engine/index.js';
 import { extractText } from '../lib/extractText.js';
+import { cleanActivities } from '../flex/activities.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, '..', '..', 'uploads');
@@ -77,7 +78,7 @@ r.post('/', upload.array('files'), async (req, res) => {
     for (const p of learned.projects) {
       req.store.insert('projects', {
         id: req.store.uid('p'), name: p.name, year: p.year || null,
-        dimensions: p.dimensions || [], source_doc_id: doc.id, review: 'proposed',
+        dimensions: p.dimensions || [], activities: cleanActivities(p.activities, req.store), source_doc_id: doc.id, review: 'proposed',
       });
     }
     for (const c of learned.certifications) {

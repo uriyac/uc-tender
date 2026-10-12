@@ -3,6 +3,7 @@
 
 import { AsyncRouter } from '../lib/http.js';
 import { EVIDENCE_FIELDS } from '../qualification/index.js';
+import { cleanActivities, PERFORMERS } from '../flex/activities.js';
 
 const r = AsyncRouter();
 // req.store — accessor מסונן לחשבון (נקבע ב-requireAuth). הבידוד המבני.
@@ -20,6 +21,7 @@ r.get('/', (req, res) => {
     certifications: certifications.map(withSource),
     // הצעות המנוע שממתינות לאישור — מוצגות בנפרד, לא נספרות ולא משמשות עד אישור.
     pending: { projects: pending.projects.map(withSource), certifications: pending.certifications.map(withSource) },
+    performers: PERFORMERS, // תוויות "מי ביצע" לבורר בחזית
     counts: {
       projects: projects.length,
       certifications: certifications.length,
@@ -77,11 +79,11 @@ r.put('/company/evidence', (req, res) => {
 
 // POST /api/knowledge/projects — הוספת פרויקט ידנית
 r.post('/projects', (req, res) => {
-  const { name, year, dimensions } = req.body || {};
+  const { name, year, dimensions, activities } = req.body || {};
   if (!name) return res.status(400).json({ error: 'נדרש שם פרויקט' });
   const p = req.store.insert('projects', {
     id: req.store.uid('p'), name, year: year || null,
-    dimensions: Array.isArray(dimensions) ? dimensions : [], source_doc_id: null,
+    dimensions: Array.isArray(dimensions) ? dimensions : [], activities: cleanActivities(activities, req.store), source_doc_id: null,
   });
   res.status(201).json(p);
 });
@@ -90,6 +92,8 @@ r.post('/projects', (req, res) => {
 r.put('/projects/:id', (req, res) => {
   const patch = {};
   for (const k of ['name', 'year', 'dimensions']) if (k in (req.body || {})) patch[k] = req.body[k];
+  // פעילויות + מי ביצע (גמישות 2.0) — מנורמל; performed_by לא מוכר → unknown
+  if (Array.isArray(req.body?.activities)) patch.activities = cleanActivities(req.body.activities, req.store);
   const updated = req.store.update('projects', req.params.id, patch);
   if (!updated) return res.status(404).json({ error: 'פרויקט לא נמצא' });
   res.json(updated);

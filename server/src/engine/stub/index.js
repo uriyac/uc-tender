@@ -104,7 +104,8 @@ export function extractKnowledge(rawText, meta = {}) {
 
   // ממדים: ביטויי כמות + מילות-תחום שמופיעות בטקסט
   const dims = [];
-  const qty = text.matchAll(/(\d+)\s*(רשויות|יישובים|מחוזות|ערים|תושבים|לקוחות|אתרים)/g);
+  // מספר שלם כולל מפרידי אלפים ("8,000 תושבים") — אחרת נחתך ל-"000 תושבים" (עיוות עובדה)
+  const qty = text.matchAll(/(\d[\d,]*\d|\d)\s*(רשויות|יישובים|מחוזות|ערים|תושבים|לקוחות|אתרים)/g);
   for (const m of qty) dims.push(`${m[1]} ${m[2]}`);
   for (const kw of DOMAIN_KEYWORDS) if (text.includes(kw)) dims.push(kw);
   const uniqDims = [...new Set(dims)].slice(0, 6);
@@ -118,9 +119,24 @@ export function extractKnowledge(rawText, meta = {}) {
   const clsf = text.match(/סיווג קבלני\s*[א-ת]?-?\d?/);
   if (clsf) certs.push({ name: clsf[0].trim(), status: 'זוהה' });
 
+  // פעילויות (גמישות 2.0): משפטי-תיאור שמכילים פעולה. מי ביצע — רק אם כתוב במפורש; אחרת unknown.
+  // לא מניחים "החברה" — מסמך שפרויקט התקיים אינו מוכיח שהמציע ביצע כל חלק בו (flex/activities.js).
+  const ACTION = /(ניהול|פיתוח|אפיון|ניתוח|הקמת|הפעלת|איחוד|אינטגרציה|תכנון|הטמעת|סקר|ליווי|הפקת|בניית|תפעול)/;
+  const titleLine = stripMd(text.split(/\n+/).map((l) => l.trim()).find(Boolean) || '');
+  const activities = text.split(/\n+/).map((l) => stripMd(l))
+    .filter((l) => l !== titleLine && l.length >= 15 && !/^(לקוח|שנה|היקף)\b/.test(l) && !/[:：]\s*$/.test(l) && ACTION.test(l))
+    .slice(0, 6)
+    .map((l) => ({
+      text: l.length > 160 ? l.slice(0, 159) + '…' : l,
+      performed_by: /קבלן[\s-]*משנה/.test(l) ? 'subcontractor'
+        : /שותף|במשותף|בשיתוף עם/.test(l) ? 'partner'
+          : /בוצע\s+(על ידי|ע"?י)\s+(החברה|צוות החברה)|ביצענו/.test(l) ? 'company' : 'unknown',
+      quote: l.slice(0, 300),
+    }));
+
   // פרויקט נוצר רק אם יש עדות מינימלית (שם + שנה או ממד) — אחרת לא ממציאים
   const projects = (year || uniqDims.length)
-    ? [{ name, year, dimensions: uniqDims }]
+    ? [{ name, year, dimensions: uniqDims, activities }]
     : [];
 
   return { projects, certifications: certs };

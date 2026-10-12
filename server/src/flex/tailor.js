@@ -6,6 +6,24 @@
 
 import { tokens, canon, cn, sharedConcepts } from '../lib/hebtext.js';
 import { enforceTailoring } from '../engine/guardrail.js';
+import { countsAsBidder } from './activities.js';
+
+// מה שאפשר לטעון בשם המציע: ממדי הפרויקט + פעילויות שהחברה עצמה ביצעה (flex/activities.js).
+const claimDims = (p) => [...(p.dimensions || []), ...(p.activities || []).filter(countsAsBidder).map((a) => a.text)];
+
+// פעילויות רלוונטיות לדרישה שבוצעו ע"י מישהו אחר (קבלן משנה/עובד/לא ידוע) — מוצגות, לא נטענות.
+export function excludedFor(requirement, projects = []) {
+  const out = [];
+  for (const p of projects) {
+    for (const a of p.activities || []) {
+      // לפחות 2 מושגים משותפים — מילה כללית אחת ("תושבים") אינה הופכת פעילות לרלוונטית
+      if (!countsAsBidder(a) && sharedConcepts(a.text, requirement).count >= 2) {
+        out.push({ project: p.name, text: a.text, performed_by: a.performed_by });
+      }
+    }
+  }
+  return out.slice(0, 3);
+}
 
 // חפיפה מילולית (בלי נרדפות) — להבחין 'direct' מ-'adjacent'.
 function literalShared(a, b) {
@@ -17,7 +35,7 @@ function literalShared(a, b) {
 export function bestAssetFor(requirement, projects = []) {
   let best = null;
   for (const p of projects) {
-    const dimsText = [p.name, ...(p.dimensions || [])].join(' ');
+    const dimsText = [p.name, ...claimDims(p)].join(' ');
     const concept = sharedConcepts(dimsText, requirement).count;
     if (concept === 0) continue;
     const literal = literalShared(dimsText, requirement);
@@ -46,7 +64,7 @@ export function tailorOne(requirement, asset) {
     return { requirement, project: null, hasSource: false, relevance: null, stretch: null,
       evidence_tier: 'weak', emphasize: [], tender_language: [], bridge: '', variants: [], fit_score: 0, sources: [] };
   }
-  const dims = asset.dimensions || [];
+  const dims = claimDims(asset);
   const emphasize = dims.filter((d) => sharedConcepts(d, requirement).count > 0);
   const conceptTotal = sharedConcepts([asset.name, ...dims].join(' '), requirement).count;
   const literal = literalShared([asset.name, ...emphasize].join(' '), requirement);
@@ -74,7 +92,7 @@ export function tailorOne(requirement, asset) {
     sources: [asset.name, ...emphasize],
   };
   // רשת-הביטחון (F0): כל בדיה שחמקה — נחסמת ומנוטרלת ל-gap.
-  return enforceTailoring(tailoring, asset);
+  return enforceTailoring(tailoring, { ...asset, dimensions: dims });
 }
 
 // תופר רשימת דרישות מול מאגר הידע. לכל דרישה — הנכס הטוב ביותר, מותפר.
@@ -83,6 +101,7 @@ export function tailorRequirements(requirements = [], kb = {}) {
   return requirements.map((r) => {
     const text = typeof r === 'string' ? r : r.text;
     const best = bestAssetFor(text, projects);
-    return { id: r.id, ...tailorOne(text, best ? best.asset : null) };
+    const excluded = excludedFor(text, projects);
+    return { id: r.id, ...tailorOne(text, best ? best.asset : null), ...(excluded.length ? { excluded } : {}) };
   });
 }

@@ -853,8 +853,11 @@
     const strTag={direct:['התאמה ישירה','oklch(0.42 0.14 155)','oklch(0.62 0.15 155 / 0.12)'],adjacent:['התאמה סמוכה','var(--amber-signal)','oklch(0.72 0.16 70 / 0.14)'],stretch:['⚠ התאמה מרחיבה','oklch(0.5 0.16 40)','oklch(0.68 0.16 45 / 0.14)']};
     const chip=(txt,bg,fg)=>`<span class="t-11 px-2 h-6 inline-flex items-center rounded-full" style="background:${bg};color:${fg}">${esc(txt)}</span>`;
     const head=`<div class="flex items-baseline justify-between mb-4"><div><h2 class="t-18 font-semibold">התאמה תפורה</h2><p class="t-12 text-black/55 mt-0.5">הצגת הנכסים שלך בתפירה לדרישות — כמו קו״ח למשרה. לעולם בלי המצאה.</p></div><div class="t-12 text-black/50">${data.summary.tailored}/${data.summary.total} תפורות${data.summary.adjacent?` · ${data.summary.adjacent} סמוכות`:''}</div></div>`;
+    // פעילות רלוונטית שבוצעה ע"י אחר (קבלן משנה/עובד/לא ידוע) — מוצגת, לא נטענת (גמישות 2.0)
+    const PERF_HE={employee:'עובד',subcontractor:'קבלן משנה',partner:'שותף',unknown:'לא ידוע מי ביצע'};
+    const exclNote=(t)=>(t.excluded&&t.excluded.length)?`<div class="mt-2 rounded-[6px] p-2.5 t-12" style="background:oklch(0.72 0.16 70 / 0.08);color:oklch(0.42 0.1 70)">⚠ נמצא ניסיון רלוונטי שלא נחשב כניסיון המציע:${t.excluded.map(x=>`<div class="mt-1 text-black/70">• "${esc(x.text)}" (${esc(x.project)}) — <b>${PERF_HE[x.performed_by]||x.performed_by}</b></div>`).join('')}<div class="mt-1 text-black/50">אם החברה עצמה ביצעה — עדכן "מי ביצע" במאגר הידע. אחרת, נחשב רק אם המכרז מתיר במפורש ניסיון של קבלן משנה / צוות.</div></div>`:'';
     const cards=items.map(t=>{
-      if(!t.hasSource){ return `<div class="rounded-[8px] border p-4 mb-2.5" style="border-color:var(--hairline);background:#FAFAF8"><div class="t-13 font-medium text-black/70">${esc(cleanReq(t.requirement))}</div><div class="t-12 text-black/45 mt-1">אין נכס תואם בזיכרון — פער. ניתן להשלים ידנית.</div></div>`; }
+      if(!t.hasSource){ return `<div class="rounded-[8px] border p-4 mb-2.5" style="border-color:var(--hairline);background:#FAFAF8"><div class="t-13 font-medium text-black/70">${esc(cleanReq(t.requirement))}</div><div class="t-12 text-black/45 mt-1">אין נכס תואם בזיכרון — פער. ניתן להשלים ידנית.</div>${exclNote(t)}</div>`; }
       const st=strTag[t.stretch]||strTag.adjacent;
       const emph=(t.emphasize||[]).map(d=>chip(d,'var(--signal-8)','var(--signal)')).join(' ');
       const lang=(t.tender_language||[]).map(w=>chip(w,'rgba(15,30,61,.05)','rgba(15,30,61,.6)')).join(' ');
@@ -866,6 +869,7 @@
         ${t.bridge?`<div class="t-12 text-black/75 mb-2" style="border-inline-start:2px solid var(--signal-8);padding-inline-start:8px">${esc(t.bridge)}</div>`:''}
         ${lang?`<div class="mb-2"><div class="t-10 uppercase tracking-wide text-black/40 mb-1">שפת המכרז שאומצה</div><div class="flex flex-wrap gap-1.5">${lang}</div></div>`:''}
         ${vars?`<details class="mt-1"><summary class="t-12 font-medium cursor-pointer" style="color:var(--signal)">חלופות ניסוח (${t.variants.length})</summary><ul class="mt-1">${vars}</ul></details>`:''}
+        ${exclNote(t)}
       </div>`;
     }).join('');
     el.innerHTML=head+cards;
@@ -1400,7 +1404,7 @@
   // ---- מאגר ידע (נטען מה-API) ----
   const KB_STAT = (l,v)=>`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="t-11 font-semibold uppercase tracking-[0.16em] text-black/55">${l}</div><div class="mt-2 font-display font-semibold tabular-nums leading-none text-[34px]" style="color:var(--signal)">${v}</div></div>`;
   const KB_CHIP = d=>`<span class="t-11 h-6 inline-flex items-center px-2 rounded-[3px] border font-semibold" style="border-color:var(--signal-20);color:var(--signal);background:var(--signal-8)">${d}</span>`;
-  const KB_PROJECT = p=>`<article class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-start justify-between"><div><h3 class="font-display t-15 font-semibold">${p.name}</h3><div class="mt-1 t-11 font-mono text-black/55">${p.year||'—'}</div></div><button onclick="kbDeleteProject('${p.id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[3px] h-8 px-2.5" style="border-color:var(--hairline)">🗑 הסר</button></div><div class="mt-4 flex flex-wrap gap-1.5">${(p.dimensions||[]).map(KB_CHIP).join('')||'<span class="t-12 text-black/40 italic">אין ממדים</span>'}</div></article>`;
+  const KB_PROJECT = p=>`<article class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-start justify-between"><div><h3 class="font-display t-15 font-semibold">${p.name}</h3><div class="mt-1 t-11 font-mono text-black/55">${p.year||'—'}</div></div><button onclick="kbDeleteProject('${p.id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[3px] h-8 px-2.5" style="border-color:var(--hairline)">🗑 הסר</button></div><div class="mt-4 flex flex-wrap gap-1.5">${(p.dimensions||[]).map(KB_CHIP).join('')||'<span class="t-12 text-black/40 italic">אין ממדים</span>'}</div>${activitiesBlock(p)}</article>`;
   const KB_CERT = c=>`<li class="p-4 flex items-center gap-4"><span class="grid place-items-center w-9 h-9 rounded-[8px] shrink-0" style="background:var(--signal-8);color:var(--signal)">🛡</span><div class="flex-1"><div class="t-13 font-semibold">${c.name}</div><div class="mt-0.5 t-12 text-black/60">🗓 ${c.valid_until?('בתוקף עד '+c.valid_until):(c.status||'בתוקף')}</div></div></li>`;
 
   // ---- ממתין לאישור: ידע שהמנוע חילץ. לא משמש בניתוח/בטיוטה עד שהמשתמש מאשר (AI מציע, אדם מאשר) ----
@@ -1409,7 +1413,7 @@
     if(!items.length) return '';
     const row=({type,x})=>{
       const sub = type==='project'
-        ? `${x.year?`<span class="font-mono">${esc(x.year)}</span> · `:''}${(x.dimensions||[]).slice(0,4).map(esc).join(' · ')||'<span class="italic">אין ממדים</span>'}`
+        ? `${x.year?`<span class="font-mono">${esc(x.year)}</span> · `:''}${(x.dimensions||[]).slice(0,4).map(esc).join(' · ')||'<span class="italic">אין ממדים</span>'}${(x.activities||[]).length?` · ${x.activities.length} פעילויות — אחרי האישור סמן מי ביצע כל אחת`:''}`
         : (x.valid_until?('בתוקף עד '+esc(x.valid_until)):'ללא תוקף');
       const src = x.source&&x.source_doc_id ? ` · <button type="button" data-doc-id="${x.source_doc_id}" data-doc-name="${esc(x.source)}" onclick="openDocViewer(this.dataset.docId,this.dataset.docName)" class="underline hover:text-black">מתוך: ${esc(x.source)}</button>` : '';
       return `<li class="py-2.5 flex items-center gap-3 border-t first:border-t-0" style="border-color:oklch(0.72 0.16 70 / 0.25)">
@@ -1430,6 +1434,33 @@
     if(window.renderReview) window.renderReview();
   }
   window.pendingBlock=pendingBlock; window.kbReview=kbReview;
+
+  // ---- פעילויות הפרויקט + "מי ביצע" (גמישות 2.0, מסמך האב §28.4) ----
+  // רק פעילות שהחברה עצמה ביצעה נחשבת ניסיון המציע ונכנסת לטיוטות. השאר מוצגות כ"לא נחשבות".
+  const PERF=[['company','החברה (המציע)'],['employee','עובד'],['subcontractor','קבלן משנה'],['partner','שותף'],['unknown','לא ידוע']];
+  function activitiesBlock(p){
+    const acts=p.activities||[];
+    const own=acts.filter(a=>a.performed_by==='company').length;
+    const rows=acts.map(a=>`<li class="py-1.5 flex items-center gap-2 border-t first:border-t-0" style="border-color:var(--hairline-soft)">
+        <span class="shrink-0 t-11" style="color:${a.performed_by==='company'?'oklch(0.48 0.14 155)':'oklch(0.55 0.12 70)'}">${a.performed_by==='company'?'✓':'○'}</span>
+        <span class="flex-1 min-w-0 t-12 text-black/75" title="${esc(a.quote||'')}">${esc(a.text)}</span>
+        <select onchange="actSetPerformer('${p.id}','${a.id}',this.value)" class="t-11 border rounded-[6px] h-7 px-1 bg-white shrink-0" style="border-color:var(--hairline)" title="מי ביצע את הפעילות">${PERF.map(([k,l])=>`<option value="${k}" ${k===a.performed_by?'selected':''}>${l}</option>`).join('')}</select>
+        <button onclick="actRemove('${p.id}','${a.id}')" class="t-11 text-black/35 hover:text-rose-600 shrink-0" title="הסר פעילות">✕</button></li>`).join('');
+    return `<div class="mt-3 pt-3 border-t" style="border-color:var(--hairline-soft)">
+      <div class="flex items-center justify-between mb-1"><div class="t-11 font-semibold text-black/55">פעילויות שבוצעו${acts.length?` · <span style="color:oklch(0.48 0.14 155)">${own} נחשבות כניסיון החברה</span>`:''}</div><button onclick="actAdd('${p.id}')" class="t-11 font-semibold" style="color:var(--signal)">+ פעילות</button></div>
+      ${acts.length?`<ul>${rows}</ul>${acts.length>own?'<div class="t-11 text-black/45 mt-1">פעילות שלא סומנה "החברה" לא תיכנס לטיוטות ולא תיחשב בתנאי ניסיון.</div>':''}`:'<div class="t-11 text-black/40 italic">פרק את הפרויקט לפעילויות (מה בוצע בפועל ומי ביצע) — כך המערכת תמצא אותו גם במכרזים מתחומים סמוכים.</div>'}
+    </div>`;
+  }
+  async function actUpdate(pid, fn){
+    const kb=await window.API.knowledge(null); const p=(kb&&kb.projects||[]).find(x=>x.id===pid); if(!p) return;
+    try{ await window.API.updateProject(pid,{activities:fn([...(p.activities||[])])}); }catch(e){ alert('שמירה נכשלה: '+e.message); return; }
+    if(window.renderKnowledge) window.renderKnowledge();
+    if(window.renderReview) window.renderReview();
+  }
+  window.actSetPerformer=(pid,aid,v)=>actUpdate(pid,acts=>acts.map(a=>a.id===aid?{...a,performed_by:v}:a));
+  window.actRemove=(pid,aid)=>{ if(confirm('להסיר את הפעילות?')) actUpdate(pid,acts=>acts.filter(a=>a.id!==aid)); };
+  window.actAdd=(pid)=>{ const t=prompt('מה בוצע בפועל? (למשל: ניתוח נתוני סקר תושבים)'); if(!t||!t.trim()) return; const who=confirm('האם החברה עצמה ביצעה את הפעילות?\n(אישור = החברה · ביטול = לא ידוע — תוכל לעדכן אחר כך)')?'company':'unknown'; actUpdate(pid,acts=>[...acts,{text:t.trim(),performed_by:who}]); };
+  window.activitiesBlock=activitiesBlock;
 
   const knowledgeInner = `
     <div class="mb-8"><div class="t-11 font-semibold uppercase tracking-[0.2em] mb-2" style="color:var(--signal)">זיכרון ארגוני</div><h1 class="font-display t-32 font-semibold">מאגר ידע</h1><p class="mt-2 t-13 text-black/60 max-w-[620px]">כל מה שהמערכת יודעת על החברה שלך. ככל שתעלה יותר — הטיוטות מדויקות יותר.</p></div>
@@ -1583,6 +1614,7 @@
       <div class="flex items-start justify-between gap-2"><div class="min-w-0"><h3 class="font-display t-15 font-semibold truncate">${p.name}</h3><div class="mt-1 t-11 font-mono ${p.year?'text-black/55':'text-amber-600'}">${p.year||'— ללא שנה'}</div></div>
         <div class="flex items-center gap-1 shrink-0"><button onclick="rvEditProject('${p.id}')" class="t-12 text-black/60 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">✎</button><button onclick="rvDeleteProject('${p.id}')" class="t-12 text-black/40 hover:text-rose-600 border rounded-[6px] h-8 px-2.5" style="border-color:var(--hairline)">🗑</button></div></div>
       <div class="mt-3 flex flex-wrap gap-1.5">${chips||'<span class="t-12 text-black/40 italic">אין ממדים</span>'}</div>
+      ${window.activitiesBlock?activitiesBlock(p):''}
       ${p.source?`<div class="mt-3 pt-3 border-t t-11 text-black/45" style="border-color:var(--hairline-soft)">מבוסס על: ${p.source}</div>`:''}
     </article>`;
   }
