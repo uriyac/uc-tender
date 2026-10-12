@@ -72,18 +72,19 @@ r.post('/', upload.array('files'), async (req, res) => {
     // המנוע לומד מהטקסט
     const learned = await engine().extractKnowledge(rawText, { kind, filename: original });
 
-    // שמירת פרויקטים + אישורים (מקושרים למסמך המקור)
+    // שמירת פרויקטים + אישורים (מקושרים למסמך המקור) — כהצעה בלבד (review:'proposed').
+    // לא נכנסים להתאמה/טיוטה עד שהמשתמש מאשר במסך הסקירה. AI מציע, אדם מאשר.
     for (const p of learned.projects) {
       req.store.insert('projects', {
         id: req.store.uid('p'), name: p.name, year: p.year || null,
-        dimensions: p.dimensions || [], source_doc_id: doc.id,
+        dimensions: p.dimensions || [], source_doc_id: doc.id, review: 'proposed',
       });
     }
     for (const c of learned.certifications) {
       const exists = req.store.all('certifications').some((x) => x.name === c.name);
       if (!exists) req.store.insert('certifications', {
         id: req.store.uid('cert'), name: c.name, valid_until: c.valid_until || null,
-        status: c.status || 'זוהה', source_doc_id: doc.id,
+        status: c.status || 'זוהה', source_doc_id: doc.id, review: 'proposed',
       });
     }
 

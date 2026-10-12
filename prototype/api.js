@@ -65,6 +65,10 @@ const API = {
 
   company(fallback) { return this._get('/api/knowledge/company', fallback); },
   updateCompany(c) { return this._send('PUT', '/api/knowledge/company', c); },
+  // קישור מסמך כראיה לנתון בפרופיל (topic: turnover/classification/years/public/staff). docId=null מבטל.
+  linkEvidence(topic, docId) { return this._send('PUT', '/api/knowledge/company/evidence', { topic, doc_id: docId }); },
+  // אישור/דחייה של ידע שהמנוע הציע. items: [{type:'project'|'certification', id}]
+  reviewKnowledge(action, items) { return this._send('POST', '/api/knowledge/review', { action, items }); },
 
   addProject(p) { return this._send('POST', '/api/knowledge/projects', p); },
   updateProject(id, p) { return this._send('PUT', '/api/knowledge/projects/' + id, p); },

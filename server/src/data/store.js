@@ -56,6 +56,9 @@ export function uid(prefix = 'id') {
 }
 const now = () => new Date().toISOString();
 
+// פריט ידע פעיל = לא ממתין לאישור ולא נדחה.
+export const isActive = (x) => x.review !== 'proposed' && x.review !== 'rejected';
+
 // ============================ Accounts ============================
 export function createAccount({ name, plan = 'free' }) {
   const id = uid('acct');
@@ -173,8 +176,15 @@ export function forAccount(accountId) {
         .run(accountId, JSON.stringify(next));
       return next;
     },
+    // הידע הפעיל בלבד — מה שאדם אישר. פריט שהמנוע חילץ נשמר כ-review:'proposed' ואינו משתתף
+    // בהתאמה/בטיוטה/בשער עד אישור (AI מציע, אדם מאשר). פריט בלי review (ידני/ישן) = מאושר.
     knowledge() {
-      return { projects: this.all('projects'), certifications: this.all('certifications') };
+      return { projects: this.all('projects').filter(isActive), certifications: this.all('certifications').filter(isActive) };
+    },
+    // פריטים שממתינים לאישור המשתמש.
+    pendingKnowledge() {
+      const pending = (x) => x.review === 'proposed';
+      return { projects: this.all('projects').filter(pending), certifications: this.all('certifications').filter(pending) };
     },
   };
 }

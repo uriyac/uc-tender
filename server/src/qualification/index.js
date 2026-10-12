@@ -125,13 +125,37 @@ export function certExpiryChecks(certifications = [], { deadline = null, rawText
   return { checks, warnings };
 }
 
+// ---------- ראיה לתנאי-סף: מסמך שהמשתמש קישר במפורש ----------
+// נושאי-סף שאפשר לגבות במסמך, ושדה הפרופיל שעליו כל אחד נשען. שינוי השדה מבטל את הקישור
+// (ראיה לערך הישן אינה ראיה לערך החדש).
+export const EVIDENCE_FIELDS = {
+  turnover: 'avg_turnover',
+  classification: 'classification',
+  years: 'senior_experience_years',
+  public: 'public_sector_experience',
+  staff: 'certified_staff',
+};
+
+// מעלה בדיקת-סף שמתקיימת (met) מ'declared' ל-'document' כשהמשתמש קישר לנושא שלה מסמך שקיים במאגר.
+// לא נוגע ב-gap/unknown: מסמך לא הופך פער לעמידה. מסמך שנמחק — הקישור לא נחשב.
+// evidence: { [topic]: { doc_id } } (company.evidence). docs: רשימת המסמכים של החשבון.
+export function applyEvidence(checks = [], evidence = {}, docs = []) {
+  const byId = new Map(docs.map((d) => [d.id, d]));
+  return checks.map((c) => {
+    const link = c.topic && evidence ? evidence[c.topic] : null;
+    const doc = link ? byId.get(link.doc_id) : null;
+    if (c.status !== 'met' || !doc) return c;
+    return { ...c, evidence: 'document', evidence_doc: { id: doc.id, filename: doc.filename } };
+  });
+}
+
 // ---------- סטטוס לבדיקת-סף ----------
-// status של בדיקה: met/gap/unknown. evidence: 'declared' (פרופיל — הצהרה) | 'document' (מסמך שהועלה).
+// status של בדיקה: met/gap/unknown. evidence: 'declared' (פרופיל — הצהרה) | 'document' (מסמך שהמשתמש קישר).
 // unknown_side: 'tender' כשהמכרז עצמו לא מגדיר את הסף (סכום/דרגה) — לא החברה.
 export function checkStatus(c) {
   if (c.status === 'gap') return 'not_met';
   if (c.status === 'unknown') return c.unknown_side === 'tender' ? 'unknown_tender' : 'unknown_company';
-  if (c.status === 'met') return c.evidence === 'verified' ? 'met_verified' : 'met_claimed';
+  if (c.status === 'met') return (c.evidence === 'document' || c.evidence === 'verified') ? 'met_verified' : 'met_claimed';
   return 'unknown_company';
 }
 
@@ -162,7 +186,7 @@ const ACTIONS = {
   unknown_company: 'חסר מידע על החברה להכרעה. השלם בפרופיל או העלה מסמך שמוכיח עמידה.',
   unknown_tender: 'המכרז לא מגדיר את הסף במפורש. בדוק בחוברת ובנספחים, או שקול שאלת הבהרה לעורך המכרז.',
   needs_clarification: 'ממתין לתשובת הבהרה.',
-  met_claimed: 'מוצהר אך לא מגובה במסמך. צרף ראיה (אישור רו״ח / אישור ביצוע / תעודה).',
+  met_claimed: 'מוצהר אך לא מגובה במסמך. קשר ראיה בטאב "תנאי סף" (אישור רו״ח / אישור ביצוע / תעודה).',
 };
 
 // ---------- השער ----------
@@ -170,7 +194,7 @@ const ACTIONS = {
 export function computeGate({ checks = [], requirements = [] } = {}) {
   const linkedTopics = new Set(checks.map((c) => c.topic).filter(Boolean));
   const items = [
-    ...checks.map((c) => ({ kind: 'threshold', label: c.label, status: checkStatus(c), required: c.required, have: c.have, action: c.action || null })),
+    ...checks.map((c) => ({ kind: 'threshold', label: c.label, topic: c.topic || null, status: checkStatus(c), required: c.required, have: c.have, evidence_doc: c.evidence_doc || null, action: c.action || null })),
     ...requirements.filter((r) => r.mandatory && !(r.topic && linkedTopics.has(r.topic)))
       .map((r) => ({ kind: 'requirement', id: r.id, label: r.text, status: r.status, action: null })),
   ].map((it) => ({ ...it, action: it.action || ACTIONS[it.status] || null }));

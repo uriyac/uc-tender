@@ -615,6 +615,7 @@
       <h1 class="mt-3 font-display t-32 font-semibold">הנה מה שהמערכת יודעת עליכם</h1>
       <p class="mt-3 t-13 text-black/65 max-w-[680px]">עברו על מה שחילצנו ותקנו כל פרט — הדיוק כאן קובע את איכות הטיוטות. המערכת משתמשת אך ורק במה שאישרתם.</p>
 
+      <div id="rv-pending" class="mt-8 empty:hidden"></div>
       <div id="rv-readiness" class="mt-8"></div>
       <div id="rv-clarify" class="mt-4"></div>
 
@@ -765,8 +766,13 @@
     const thRight=(c)=>{
       if(c.status==='unknown'&&c.unknown_side==='tender') return `<div class="t-12 text-black/50 text-left">לא מוגדר במכרז — בדוק בחוברת / שאלת הבהרה</div>`;
       if(c.status==='unknown') return `<button onclick="fillProfileField('${csFieldFor(c.label)}')" class="t-12 font-semibold whitespace-nowrap" style="color:var(--signal)">+ הוסף לפרופיל</button>`;
-      const decl=c.status==='met'&&c.evidence==='declared'?' <span class="text-black/45">(מוצהר)</span>':'';
-      return `<div class="t-12 ${c.status==='met'?'text-emerald-700':'text-rose-600'}">${esc(c.have)}${decl}</div>`;
+      // עומד: מגובה במסמך → שם המסמך + ביטול; מוצהר → כפתור קישור ראיה (מעלה ל"מאומת")
+      const EV_TOPICS=['turnover','classification','years','public','staff'];
+      let ev='';
+      if(c.status==='met'&&c.evidence==='document'&&c.evidence_doc) ev=` <span class="text-black/55">· 📎 <button type="button" data-doc-id="${c.evidence_doc.id}" data-doc-name="${esc(c.evidence_doc.filename)}" onclick="openDocViewer(this.dataset.docId,this.dataset.docName)" class="underline">${esc(c.evidence_doc.filename)}</button></span> <button onclick="thLinkEvidence('${c.topic}',null)" class="t-11 text-black/40 hover:text-rose-600" title="בטל קישור">✕</button>`;
+      else if(c.status==='met'&&EV_TOPICS.includes(c.topic)) ev=` <span class="text-black/45">(מוצהר)</span> <span id="thev-${c.topic}"><button onclick="thPickEvidence('${c.topic}')" class="t-12 font-semibold whitespace-nowrap" style="color:var(--signal)">📎 קשר מסמך</button></span>`;
+      else if(c.status==='met'&&c.evidence==='declared') ev=' <span class="text-black/45">(מוצהר)</span>';
+      return `<div class="t-12 ${c.status==='met'?'text-emerald-700':'text-rose-600'}">${esc(c.have)}${ev}</div>`;
     };
     const expW=(data.expiry_warnings||[]).map(w=>`<div class="t-12 text-black/55 mt-2">⏳ ${esc(w.label)} — ${esc(w.have)} (לא נדרש במפורש במכרז זה)</div>`).join('');
     if(thEl) thEl.innerHTML = checks.length ? `<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-baseline justify-between mb-3"><h2 class="t-18 font-semibold">בדיקת תנאי סף</h2><div class="t-11 text-black/50">מוצלב מול פרופיל החברה · "מוצהר" = מהפרופיל, טרם הוכח במסמך</div></div><div>${checks.map(c=>`<div class="flex items-center justify-between gap-4 py-2.5 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><div class="flex items-center gap-2 t-13"><span style="color:${stColor[c.status]||'var(--amber-signal)'}">${stIcon[c.status]||'?'}</span><span class="font-medium">${esc(c.label)}</span></div>${thRight(c)}</div>`).join('')}</div>${expW}</div>` : '<div class="rounded-[8px] border bg-white card-soft p-6 t-13 text-black/45 text-center" style="border-color:var(--hairline)">לא זוהו תנאי סף מובנים במכרז זה — יש לעבור על החוברת ידנית.</div>'+expW;
@@ -790,6 +796,19 @@
     renderTailoring(id); // קומת הגמישות (F2) — נטען במקביל
   }
   window.renderAnalysis=renderAnalysis;
+
+  // קישור ראיה לתנאי-סף: המשתמש בוחר מסמך מהמאגר שמוכיח את הנתון בפרופיל. פעולה אנושית מפורשת.
+  async function thPickEvidence(topic){
+    const box=document.getElementById('thev-'+topic); if(!box) return;
+    const docs=await window.API.documentsList([]);
+    if(!docs.length){ box.innerHTML='<span class="t-11 text-black/50">אין מסמכים במאגר — העלה קודם אישור/דוח</span>'; return; }
+    box.innerHTML=`<select id="thev-sel-${topic}" class="t-11 border rounded-[6px] h-7 px-1.5 bg-white max-w-[220px]" style="border-color:var(--hairline)"><option value="">בחר מסמך שמוכיח…</option>${docs.map(d=>`<option value="${d.id}">${esc(d.filename)}</option>`).join('')}</select> <button onclick="thLinkEvidence('${topic}',document.getElementById('thev-sel-${topic}').value||null)" class="t-11 font-semibold text-white px-2 h-7 rounded-[6px]" style="background:var(--signal)">קשר</button>`;
+  }
+  async function thLinkEvidence(topic, docId){
+    try{ await window.API.linkEvidence(topic, docId); }catch(e){ alert('קישור נכשל: '+e.message); return; }
+    renderAnalysis();
+  }
+  window.thPickEvidence=thPickEvidence; window.thLinkEvidence=thLinkEvidence;
 
   // שער הכשירות — כרטיס ההמלצה. מציג את ההחלטה, הסיבה, ו-3 הדברים הראשונים שחוסמים אותה (עם פעולה).
   const GATE_UI={
@@ -1353,8 +1372,37 @@
   const KB_PROJECT = p=>`<article class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)"><div class="flex items-start justify-between"><div><h3 class="font-display t-15 font-semibold">${p.name}</h3><div class="mt-1 t-11 font-mono text-black/55">${p.year||'—'}</div></div><button onclick="kbDeleteProject('${p.id}')" class="t-12 font-semibold text-black/45 hover:text-rose-600 border rounded-[3px] h-8 px-2.5" style="border-color:var(--hairline)">🗑 הסר</button></div><div class="mt-4 flex flex-wrap gap-1.5">${(p.dimensions||[]).map(KB_CHIP).join('')||'<span class="t-12 text-black/40 italic">אין ממדים</span>'}</div></article>`;
   const KB_CERT = c=>`<li class="p-4 flex items-center gap-4"><span class="grid place-items-center w-9 h-9 rounded-[8px] shrink-0" style="background:var(--signal-8);color:var(--signal)">🛡</span><div class="flex-1"><div class="t-13 font-semibold">${c.name}</div><div class="mt-0.5 t-12 text-black/60">🗓 ${c.valid_until?('בתוקף עד '+c.valid_until):(c.status||'בתוקף')}</div></div></li>`;
 
+  // ---- ממתין לאישור: ידע שהמנוע חילץ. לא משמש בניתוח/בטיוטה עד שהמשתמש מאשר (AI מציע, אדם מאשר) ----
+  function pendingBlock(pending){
+    const items=[...(pending&&pending.projects||[]).map(p=>({type:'project',x:p})),...(pending&&pending.certifications||[]).map(c=>({type:'certification',x:c}))];
+    if(!items.length) return '';
+    const row=({type,x})=>{
+      const sub = type==='project'
+        ? `${x.year?`<span class="font-mono">${esc(x.year)}</span> · `:''}${(x.dimensions||[]).slice(0,4).map(esc).join(' · ')||'<span class="italic">אין ממדים</span>'}`
+        : (x.valid_until?('בתוקף עד '+esc(x.valid_until)):'ללא תוקף');
+      const src = x.source&&x.source_doc_id ? ` · <button type="button" data-doc-id="${x.source_doc_id}" data-doc-name="${esc(x.source)}" onclick="openDocViewer(this.dataset.docId,this.dataset.docName)" class="underline hover:text-black">מתוך: ${esc(x.source)}</button>` : '';
+      return `<li class="py-2.5 flex items-center gap-3 border-t first:border-t-0" style="border-color:oklch(0.72 0.16 70 / 0.25)">
+        <span class="shrink-0">${type==='project'?'📁':'🛡'}</span>
+        <div class="flex-1 min-w-0"><div class="t-13 font-semibold truncate">${esc(x.name)}</div><div class="t-11 text-black/55 truncate">${sub}${src}</div></div>
+        <button onclick="kbReview('approve',[{type:'${type}',id:'${x.id}'}])" class="t-12 font-semibold text-white px-3 h-8 rounded-[6px] shrink-0" style="background:var(--signal)">✓ אשר</button>
+        <button onclick="kbReview('reject',[{type:'${type}',id:'${x.id}'}])" class="t-12 font-semibold px-3 h-8 rounded-[6px] border bg-white shrink-0 text-black/60" style="border-color:var(--hairline)">✕ דחה</button></li>`;
+    };
+    window._pendingAll=items.map(({type,x})=>({type,id:x.id}));
+    return `<div class="rounded-[8px] border p-4" style="border-color:oklch(0.72 0.16 70 / 0.45);background:oklch(0.72 0.16 70 / 0.06)">
+      <div class="flex items-start justify-between gap-3 mb-2"><div><div class="t-13 font-semibold" style="color:oklch(0.45 0.12 70)">ממתין לאישורך — ${items.length} פריטים שהמערכת חילצה מהמסמכים</div><div class="t-12 text-black/60 mt-0.5">המערכת לא תשתמש בהם בניתוח מכרזים ובטיוטות עד שתאשר. בדוק שכל פריט נכון.</div></div>
+      <button onclick="kbReview('approve',window._pendingAll)" class="t-12 font-semibold px-3 h-8 rounded-[6px] border bg-white shrink-0" style="border-color:oklch(0.72 0.16 70 / 0.5);color:oklch(0.45 0.12 70)">✓ אשר הכל</button></div>
+      <ul>${items.map(row).join('')}</ul></div>`;
+  }
+  async function kbReview(action, items){
+    try{ await window.API.reviewKnowledge(action, items); }catch(e){ alert('הפעולה נכשלה: '+e.message); return; }
+    if(window.renderKnowledge) window.renderKnowledge();
+    if(window.renderReview) window.renderReview();
+  }
+  window.pendingBlock=pendingBlock; window.kbReview=kbReview;
+
   const knowledgeInner = `
     <div class="mb-8"><div class="t-11 font-semibold uppercase tracking-[0.2em] mb-2" style="color:var(--signal)">זיכרון ארגוני</div><h1 class="font-display t-32 font-semibold">מאגר ידע</h1><p class="mt-2 t-13 text-black/60 max-w-[620px]">כל מה שהמערכת יודעת על החברה שלך. ככל שתעלה יותר — הטיוטות מדויקות יותר.</p></div>
+    <div id="kb-pending" class="mb-8 empty:hidden"></div>
     <div id="kb-stats" class="grid grid-cols-4 gap-4 mb-10"></div>
     <div class="flex items-end justify-between border-b pb-4 mb-5" style="border-color:var(--hairline)"><h2 class="font-display t-24 font-semibold">פרויקטים</h2><button onclick="kbAddProject()" class="t-12 font-semibold inline-flex items-center gap-1.5" style="color:var(--signal)">+ הוסף פרויקט</button></div>
     <div id="kb-projects" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10"></div>
@@ -1364,6 +1412,7 @@
   async function renderKnowledge(){
     const kb = await window.API.knowledge({projects:[],certifications:[],counts:{projects:0,certifications:0,dimensions:0,tendersLearned:0}});
     const stats=document.getElementById('kb-stats'); if(!stats) return;
+    const pend=document.getElementById('kb-pending'); if(pend) pend.innerHTML=pendingBlock(kb.pending);
     stats.innerHTML = KB_STAT('פרויקטים',kb.counts.projects)+KB_STAT('אישורים',kb.counts.certifications)+KB_STAT('ממדים',kb.counts.dimensions)+KB_STAT('מכרזים שנלמדו',kb.counts.tendersLearned||0);
     document.getElementById('kb-projects').innerHTML = kb.projects.map(KB_PROJECT).join('')||'<div class="t-13 text-black/45 col-span-2">עדיין אין פרויקטים. העלה מסמכים כדי שהמערכת תלמד.</div>';
     document.getElementById('kb-certs').innerHTML = kb.certifications.map(KB_CERT).join('')||'<li class="p-4 t-13 text-black/45">אין אישורים.</li>';
@@ -1562,6 +1611,7 @@
       window.API.documentsList([]),
     ]);
 
+    el('rv-pending').innerHTML = window.pendingBlock ? pendingBlock(kb.pending) : '';
     const covered=(rd.categories||[]).filter(c=>c.covered).map(c=>c.label);
     const missing=(rd.categories||[]).filter(c=>!c.covered).map(c=>c.label);
     el('rv-readiness').innerHTML=`<div class="rounded-[8px] border bg-white card-soft p-5" style="border-color:var(--hairline)">
@@ -1659,7 +1709,7 @@
     }
     function rowDone(res){
       const ok=res.status==='done';
-      const detail=ok?`זוהו ${res.projects} פרויקטים · ${res.certifications} אישורים`:(res.error||'שגיאה');
+      const detail=ok?`זוהו ${res.projects} פרויקטים · ${res.certifications} אישורים${(res.projects+res.certifications)?' — ממתינים לאישורך בשלב הסקירה':''}`:(res.error||'שגיאה');
       const cls=ok?'text-emerald-700':'text-rose-600';
       const badge=res.autoClassified?'<span class="t-10 px-1.5 h-5 inline-flex items-center rounded-full" style="background:var(--signal-8);color:var(--signal)">סווג אוטומטית</span>':'';
       return `<div class="p-3 flex items-center gap-3 border rounded-[8px] bg-white" style="border-color:var(--hairline)"><span class="grid place-items-center w-9 h-9 rounded-[8px] bg-black/[0.04] shrink-0">${icon(res.filename)}</span><div class="flex-1 min-w-0"><div class="t-13 font-semibold truncate">${res.filename}</div><div class="mt-1 t-12 inline-flex items-center gap-1.5 ${cls}">${ok?'✓ ':'⚠ '}<span class="text-black/70">${detail}</span></div></div><div class="flex items-center gap-2 shrink-0">${badge}${ok?catSelect(res):''}</div></div>`;

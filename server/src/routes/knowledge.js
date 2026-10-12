@@ -2,6 +2,7 @@
 // שלב 0: קריאה. שלב 1: יתווספו העלאה, חילוץ ועריכה שנשמרים.
 
 import { AsyncRouter } from '../lib/http.js';
+import { EVIDENCE_FIELDS } from '../qualification/index.js';
 
 const r = AsyncRouter();
 // req.store — accessor מסונן לחשבון (נקבע ב-requireAuth). הבידוד המבני.
@@ -13,14 +14,18 @@ r.get('/', (req, res) => {
   const sourceOf = (id) => (docs.find((d) => d.id === id) || {}).filename || null;
   const withSource = (x) => ({ ...x, source: sourceOf(x.source_doc_id) });
   const dimensions = projects.reduce((n, p) => n + (p.dimensions?.length || 0), 0);
+  const pending = req.store.pendingKnowledge();
   res.json({
     projects: projects.map(withSource),
     certifications: certifications.map(withSource),
+    // הצעות המנוע שממתינות לאישור — מוצגות בנפרד, לא נספרות ולא משמשות עד אישור.
+    pending: { projects: pending.projects.map(withSource), certifications: pending.certifications.map(withSource) },
     counts: {
       projects: projects.length,
       certifications: certifications.length,
       dimensions,
       tendersLearned: req.store.all('outcomes').length,
+      pending: pending.projects.length + pending.certifications.length,
     },
   });
 });
@@ -42,7 +47,30 @@ r.put('/company', (req, res) => {
   if (Array.isArray(b.specialties)) patch.specialties = b.specialties.filter(Boolean);
   if (Array.isArray(b.regions)) patch.regions = b.regions.filter(Boolean);
   if (typeof b.onboarded === 'boolean') patch.onboarded = b.onboarded;
+  // ערך שהשתנה מבטל את הראיה שקושרה לו — מסמך שגיבה את הערך הישן אינו מגבה את החדש.
+  const cur = req.store.company();
+  const ev = { ...(cur.evidence || {}) };
+  let evChanged = false;
+  for (const [topic, field] of Object.entries(EVIDENCE_FIELDS)) {
+    if (field in patch && ev[topic] && String(cur[field] ?? '') !== patch[field]) { delete ev[topic]; evChanged = true; }
+  }
+  if (evChanged) patch.evidence = ev;
   res.json(req.store.updateCompany(patch));
+});
+
+// PUT /api/knowledge/company/evidence { topic, doc_id|null } — קישור מסמך כראיה לנתון בפרופיל.
+// זו פעולה אנושית מפורשת: המשתמש קובע שהמסמך הזה מוכיח את הנתון. doc_id=null מבטל קישור.
+r.put('/company/evidence', (req, res) => {
+  const { topic, doc_id } = req.body || {};
+  if (!EVIDENCE_FIELDS[topic]) return res.status(400).json({ error: 'נושא ראיה לא מוכר' });
+  const ev = { ...(req.store.company().evidence || {}) };
+  if (doc_id == null) delete ev[topic];
+  else {
+    const doc = req.store.find('documents', doc_id);
+    if (!doc) return res.status(404).json({ error: 'מסמך לא נמצא' });
+    ev[topic] = { doc_id: doc.id, linked_at: new Date().toISOString(), linked_by: req.user?.id || null };
+  }
+  res.json(req.store.updateCompany({ evidence: ev }));
 });
 
 // --- עריכת מאגר הידע (נשמר) ---
@@ -92,5 +120,31 @@ r.delete('/certifications/:id', (req, res) => {
   req.store.remove('certifications', req.params.id);
   res.json({ ok: true });
 });
+
+// --- אישור/דחייה של ידע שהמנוע הציע (AI מציע, אדם מאשר) ---
+// POST /api/knowledge/review { action: 'approve'|'reject', items: [{ type: 'project'|'certification', id }] }
+// דחייה אינה מוחקת — הפריט נשמר כ-'rejected' (תיעוד, ומניעת חילוץ חוזר של אותו אישור).
+const REVIEW_COLL = { project: 'projects', certification: 'certifications' };
+r.post('/review', (req, res) => {
+  const { action, items } = req.body || {};
+  if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'פעולה לא חוקית (approve/reject)' });
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'לא נבחרו פריטים' });
+  const review = action === 'approve' ? 'approved' : 'rejected';
+  let updated = 0;
+  for (const it of items) {
+    const coll = REVIEW_COLL[it && it.type];
+    if (!coll) continue;
+    const cur = req.store.find(coll, it.id);
+    if (!cur || cur.review !== 'proposed') continue; // רק הצעות פתוחות; לא דורסים החלטה קודמת
+    req.store.update(coll, it.id, { review, reviewed_at: new Date().toISOString(), reviewed_by: req.user?.id || null });
+    updated++;
+  }
+  res.json({ ok: true, updated, pending: countPending(req.store) });
+});
+
+function countPending(store) {
+  const p = store.pendingKnowledge();
+  return p.projects.length + p.certifications.length;
+}
 
 export default r;

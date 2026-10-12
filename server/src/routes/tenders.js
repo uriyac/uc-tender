@@ -7,13 +7,15 @@ import { extractText } from '../lib/extractText.js';
 import { analyzeForm, buildSubmissionPacket } from '../packet/index.js';
 import { REASON_CODES, isValidReasonCode, snapshotPrediction, issuerInsight } from '../learning/index.js';
 import { tailorRequirements } from '../flex/tailor.js';
-import { requirementStatuses, certExpiryChecks, computeGate } from '../qualification/index.js';
+import { requirementStatuses, certExpiryChecks, computeGate, applyEvidence } from '../qualification/index.js';
 
 // שער הכשירות: בדיקות-סף (+ תוקף אישורים מול מועד ההגשה) + סטטוסי דרישות → gate מחושב.
 // ההחלטה נגזרת בקוד מהסטטוסים — לא מהמנוע ולא מהציון. ראה qualification/index.js.
 function qualify(store, tender, reqs, analysis, thresholdChecks = []) {
-  const expiry = certExpiryChecks(store.all('certifications'), { deadline: tender.deadline, rawText: tender.raw_text });
-  const checks = [...thresholdChecks, ...expiry.checks];
+  const expiry = certExpiryChecks(store.knowledge().certifications, { deadline: tender.deadline, rawText: tender.raw_text });
+  // בדיקת-סף שהמשתמש גיבה במסמך (company.evidence) → met_verified. בלי קישור — נשארת הצהרה.
+  const backed = applyEvidence(thresholdChecks, store.company().evidence, store.all('documents'));
+  const checks = [...backed, ...expiry.checks];
   const requirements = requirementStatuses(reqs, analysis, checks);
   const gate = computeGate({ checks, requirements });
   return { gate, requirements, checks, expiryWarnings: expiry.warnings };
@@ -23,7 +25,7 @@ function qualify(store, tender, reqs, analysis, thresholdChecks = []) {
 function knowledgeFor(store) {
   const company = store.company();
   return {
-    certifications: store.all('certifications'),
+    certifications: store.knowledge().certifications,
     documentCategories: [...new Set(store.all('documents').map((d) => d.category).filter(Boolean))],
     classification: company.classification || null,
   };
@@ -217,12 +219,13 @@ r.post('/:id/outcome', upload.array('files'), async (req, res) => {
         // ראיה מנצחת: תיוג-מקור לשימוש בתפירה/טיוטה עתידית (אפס-הזיות — מעוגן בהגשה אמיתית)
         source: isWin ? 'הגשה זוכה' : 'הגשה',
         won_tender_id: isWin ? t.id : null,
+        review: 'proposed', // חולץ ע"י המנוע — ממתין לאישור לפני שימוש
       });
       learnedProjects++;
     }
     for (const c of learned.certifications) {
       if (!req.store.all('certifications').some((x) => x.name === c.name)) {
-        req.store.insert('certifications', { id: req.store.uid('cert'), name: c.name, valid_until: c.valid_until || null, status: c.status || 'זוהה' });
+        req.store.insert('certifications', { id: req.store.uid('cert'), name: c.name, valid_until: c.valid_until || null, status: c.status || 'זוהה', review: 'proposed' });
         learnedCerts++;
       }
     }

@@ -26,7 +26,7 @@ async function client() {
   return _client;
 }
 
-const MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5';
+const MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5-5';
 
 // עוטף טקסט לא-מהימן בבלוק DATA מתוחם. תוכן המסמך לעולם לא נכנס ל-system.
 function dataBlock(label, text) {
@@ -42,7 +42,11 @@ export async function extract({ system, instruction, dataLabel, data, schema, ef
     ? `${instruction}\n\n${dataBlock(dataLabel || 'הטקסט', data)}`
     : instruction;
 
-  const res = await c.messages.create({
+  // fallbacks:'default' — אם מסנן בטיחות דוחה (false positive על מסמך מכרז), השרת מריץ שוב
+  // על מודל חלופי באותה קריאה. דחייה של כל השרשרת עדיין מגיעה כ-stop_reason==='refusal'.
+  const res = await c.beta.messages.create({
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
     model: MODEL,
     max_tokens: maxTokens,
     thinking: { type: 'adaptive' },

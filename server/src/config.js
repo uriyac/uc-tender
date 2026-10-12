@@ -31,7 +31,7 @@ const truthy = (v, dflt = false) => {
 export const config = {
   engine: (process.env.ENGINE || 'stub').toLowerCase(),
   port: Number(process.env.PORT) || 3000,
-  claudeModel: process.env.CLAUDE_MODEL || 'claude-opus-5',
+  claudeModel: process.env.CLAUDE_MODEL || 'claude-opus-5-5',
   hasClaudeKey: !!(process.env.ANTHROPIC_API_KEY || '').trim(),
   seedMode: (process.env.SEED || '').toLowerCase(),
   logRequests: truthy(process.env.LOG_REQUESTS, true),
