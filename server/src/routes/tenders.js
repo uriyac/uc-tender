@@ -11,6 +11,8 @@ import { kbForClaims, cleanActivities } from '../flex/activities.js';
 import { requirementStatuses, certExpiryChecks, computeGate, applyEvidence } from '../qualification/index.js';
 import { locateAll } from '../lib/sourceSpan.js';
 import { detectClarifications, issuerTransition, windowState } from '../clarify/index.js';
+import { buildExecutiveSummary } from '../summary/index.js';
+import { summaryToDocx } from '../export/docx.js';
 import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
 import { dirname, join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -295,6 +297,29 @@ r.get('/:id/clarifications/export.txt', async (req, res) => {
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent('שאלות-הבהרה.txt')}`);
   res.send('﻿' + body);
+});
+
+// ============ תקציר מנהלים (summary/index.js) — הרכבה דטרמיניסטית, כל פרט עם מקור ============
+async function summaryFor(store, t) {
+  const c = await clarificationsFor(store, t);
+  return buildExecutiveSummary({ tender: t, gate: c.a.gate, redFlags: c.a.redFlags, sources: c.a.sources, clar: c });
+}
+
+// GET /api/tenders/:id/summary
+r.get('/:id/summary', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  res.json(await summaryFor(req.store, t));
+});
+
+// GET /api/tenders/:id/summary.docx — תקציר מנהלים כקובץ Word (RTL) לשליחה להנהלה
+r.get('/:id/summary.docx', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  const buf = await summaryToDocx(await summaryFor(req.store, t));
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`תקציר-מנהלים-${(t.code || '').replace(/[^\w\-]/g, '')}.docx`)}`);
+  res.send(buf);
 });
 
 // הערכה מלאה של מכרז: ניתוח + בדיקות-סף + דגלים + שער כשירות + מקורות. משותף לניתוח ולהבהרות.

@@ -799,6 +799,7 @@
     window.currentGate = data.gate ? data.gate.status : null;
     renderTailoring(id); // קומת הגמישות (F2) — נטען במקביל
     renderClarifications(id); // מנוע ההבהרות — פנימיות + לעורך המכרז
+    renderExecSummary(id);    // תקציר מנהלים — ראשון בטאב "סקירה"
   }
   window.renderAnalysis=renderAnalysis;
 
@@ -875,6 +876,32 @@
     }).join('');
     el.innerHTML=head+cards;
   }
+  // ---- תקציר מנהלים (server/src/summary) — הרכבה של נתונים שחולצו; כל פרט עם מקור, חסר = "לא זוהה" ----
+  async function renderExecSummary(id){
+    const el=document.getElementById('an-exec'); if(!el) return;
+    let s; try{ s=await window.API.tenderSummary(id); }catch(e){ el.innerHTML=''; return; }
+    const u=GATE_UI[s.bottom_line.gate]||GATE_UI.HOLD, c=s.bottom_line.counts;
+    const factCell=f=>`<div class="py-2"><div class="t-11 text-black/50">${esc(f.label)}</div>${f.found
+      ?`<div class="t-13 font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">${esc(f.value)}${f.source?srcChip(f.source):''}</div>${f.note?`<div class="t-11 mt-0.5 ${/חלף/.test(f.note)?'text-rose-600':'text-black/55'}">${esc(f.note)}</div>`:''}`
+      :`<div class="t-12 mt-0.5 italic" style="color:oklch(0.5 0.12 70)">${esc(f.note)}</div>`}</div>`;
+    const TST={met_verified:'oklch(0.48 0.14 155)',met_claimed:'oklch(0.45 0.13 175)',not_met:'oklch(0.5 0.2 25)'};
+    const th=s.thresholds.map(t=>`<li class="py-1.5 flex items-start gap-2 t-12 border-t first:border-t-0" style="border-color:var(--hairline-soft)"><span class="font-semibold whitespace-nowrap" style="color:${TST[t.status]||'var(--amber-signal)'}">${esc(t.status_he)}</span><span class="text-black/75 flex-1">${esc(cleanReq(t.label))}</span>${t.source?srcChip(t.source):''}</li>`).join('');
+    const sev={high:'גבוה',medium:'בינוני',low:'מידע'};
+    el.innerHTML=`<div class="rounded-[8px] border bg-white card-soft overflow-hidden" style="border-color:var(--hairline)">
+      <div class="px-5 py-4 flex items-start justify-between gap-3 border-b" style="border-color:var(--hairline);background:${u.bg}">
+        <div><div class="t-11 font-semibold uppercase tracking-[0.14em] text-black/45">תקציר מנהלים</div><div class="t-20 font-semibold mt-1" style="color:${u.c}">${u.i} ${esc(s.bottom_line.text)}</div><div class="t-12 text-black/65 mt-0.5">${esc(s.bottom_line.reason||'')}</div>
+          <div class="t-11 text-black/55 mt-1.5">תנאי סף: ${c.total} · עומד ומגובה ${c.met_verified} · מוצהר ${c.met_claimed} · לא עומד ${c.not_met} · לא הוכרע ${c.unknown}</div></div>
+        <a href="/api/tenders/${encodeURIComponent(id)}/summary.docx" class="t-12 font-semibold h-9 px-3 inline-flex items-center rounded-[6px] border bg-white shrink-0" style="border-color:var(--hairline)">⬇ Word</a>
+      </div>
+      <div class="px-5 py-3 grid grid-cols-2 md:grid-cols-3 gap-x-6 border-b" style="border-color:var(--hairline-soft)">${[...s.dates,...s.money].map(factCell).join('')}</div>
+      ${s.actions.length?`<div class="px-5 py-3 border-b" style="border-color:var(--hairline-soft)"><div class="t-12 font-semibold mb-1.5">מה לעשות עכשיו</div><ol class="list-decimal pr-5 space-y-1">${s.actions.map(a=>`<li class="t-12 text-black/75">${esc(a)}</li>`).join('')}</ol></div>`:''}
+      <details class="px-5 py-3 border-b" style="border-color:var(--hairline-soft)"><summary class="t-12 font-semibold cursor-pointer">תנאי הסף (${s.thresholds.length})</summary><ul class="mt-2">${th||'<li class="t-12" style="color:oklch(0.5 0.12 70)">לא זוהו תנאי סף מובנים — יש לעבור על החוברת ידנית.</li>'}</ul></details>
+      ${s.risks.length?`<details class="px-5 py-3 border-b" style="border-color:var(--hairline-soft)"><summary class="t-12 font-semibold cursor-pointer">סיכונים (${s.risks.length})</summary><ul class="mt-2 space-y-1">${s.risks.map(r=>`<li class="t-12 text-black/75">• <b>${esc(r.label)}</b> (${sev[r.severity]||r.severity}) — ${esc(r.detail)}</li>`).join('')}</ul></details>`:''}
+      <div class="px-5 py-2.5 t-11 text-black/45">${esc(s.disclaimer)}</div>
+    </div>`;
+  }
+  window.renderExecSummary=renderExecSummary;
+
   // ---- הבהרות (server/src/clarify) — שאלה פנימית לחברה מול שאלה רשמית לעורך המכרז ----
   // פנימית: התשובה מעדכנת פרופיל/דרישה והשער מחושב מחדש (לפני → אחרי). "כן" = הצהרה, לא ראיה.
   // לעורך המכרז: אף פעם לא נשלחת מכאן. אישור → אדם שולח בערוץ הרשמי → מתעד → קולט תשובה.
@@ -1098,6 +1125,7 @@
       </div>
 
       <div class="an-panel active" data-anpanel="overview">
+        <div id="an-exec" class="mb-5"></div>
         <div id="an-statebar" class="mb-4"></div>
       </div>
       <div class="an-panel" data-anpanel="reqs">
