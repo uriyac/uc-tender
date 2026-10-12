@@ -41,6 +41,8 @@ export function requireAuth(req, res, next) {
   req.user = user;
   req.accountId = user.account_id;
   req.store = user.account_id ? store.for(user.account_id) : null; // accessor מסונן — הבידוד
+  // superadmin ללא חשבון-לקוח: אין לו נתוני מכרזים/ידע. 403 ברור במקום קריסה (500) ב-route.
+  if (!req.store) return res.status(403).json({ error: 'מנהל המערכת אינו משויך לחשבון לקוח — אין גישה לנתוני מכרזים. התחבר כמשתמש החשבון.' });
   next();
 }
 
