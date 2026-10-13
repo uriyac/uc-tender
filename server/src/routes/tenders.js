@@ -14,6 +14,7 @@ import { thresholdScope } from '../lib/tenderSections.js';
 import { daysUntil, withLiveDays } from '../lib/dates.js';
 import { detectClarifications, issuerTransition, windowState } from '../clarify/index.js';
 import { buildExecutiveSummary } from '../summary/index.js';
+import { buildLiveDocument } from '../document/index.js';
 import { summaryToDocx } from '../export/docx.js';
 import { writeFileSync, mkdirSync, createReadStream, existsSync } from 'node:fs';
 import { dirname, join, basename, extname } from 'node:path';
@@ -350,6 +351,23 @@ r.get('/:id/summary.docx', async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`תקציר-מנהלים-${(t.code || '').replace(/[^\w\-]/g, '')}.docx`)}`);
   res.send(buf);
+});
+
+// GET /api/tenders/:id/document — "המסמך החי": טקסט המכרז + סימון כל דרישה (עם מצבה) וכל פרט מהתקציר.
+r.get('/:id/document', async (req, res) => {
+  const t = req.store.find('tenders', req.params.id);
+  if (!t) return res.status(404).json({ error: 'מכרז לא נמצא' });
+  if (!t.raw_text) return res.status(422).json({ error: 'אין טקסט שמור למכרז זה' });
+  const reqs = req.store.all('requirements').filter((x) => x.tender_id === t.id);
+  const a = await assess(req.store, t, reqs);
+  const statusById = new Map(a.requirements.map((r) => [r.id, r.status]));
+  const s = await summaryFor(req.store, t);
+  const doc = buildLiveDocument({
+    rawText: t.raw_text,
+    requirements: reqs.map((r) => ({ id: r.id, text: r.text, category: r.category, mandatory: r.mandatory, status: statusById.get(r.id) || null })),
+    facts: [...s.about, ...s.selection, ...s.dates, ...s.costs, ...s.terms],
+  });
+  res.json({ ...doc, gate: { status: a.gate.status, reason: a.gate.reason } });
 });
 
 // הערכה מלאה של מכרז: ניתוח + בדיקות-סף + דגלים + שער כשירות + מקורות. משותף לניתוח ולהבהרות.

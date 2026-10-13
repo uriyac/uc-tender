@@ -45,14 +45,15 @@ function windows(rawText) {
   const lines = [];
   let pos = 0;
   for (const line of text.split('\n')) {
-    if (line.trim() && !PAGE_MARK.test(line)) lines.push({ text: line.trim(), offset: pos });
+    // offset = תחילת הטקסט בשורה (אחרי רווחים מובילים); end = סופו — טווח להדגשה במסמך החי
+    if (line.trim() && !PAGE_MARK.test(line)) { const lead = line.length - line.trimStart().length; lines.push({ text: line.trim(), offset: pos + lead, end: pos + lead + line.trim().length }); }
     PAGE_MARK.lastIndex = 0;
     pos += line.length + 1;
   }
   const out = lines.map((l) => ({ ...l, norm: normalize(l.text) }));
   for (let i = 0; i + 1 < lines.length; i++) {
     const t = `${lines[i].text} ${lines[i + 1].text}`;
-    out.push({ text: t, offset: lines[i].offset, norm: normalize(t), joined: true });
+    out.push({ text: t, offset: lines[i].offset, end: lines[i + 1].end, norm: normalize(t), joined: true });
   }
   return out;
 }
@@ -66,14 +67,14 @@ export function locate(reqText, ctx) {
 
   // 1) נוסח מלא — מעדיפים שורה בודדת על חלון מחובר
   const exact = ctx.windows.find((w) => !w.joined && w.norm.includes(target)) || ctx.windows.find((w) => w.norm.includes(target));
-  if (exact) return { match: 'exact', page: pageAt(ctx.ends, exact.offset), quote: clip(exact.text) };
+  if (exact) return { match: 'exact', page: pageAt(ctx.ends, exact.offset), quote: clip(exact.text), start: exact.offset, end: exact.end };
 
   // 1ב) דרישה ארוכה שמאחדת סעיף ותתי-סעיפים ("2.3.1 ... (1) ... (2) ...") אינה רצף אחד במסמך —
   //     מאתרים את פתיחת הסעיף (10 המילים הראשונות) כלשונה. זה עדיין מקור מדויק לתחילת הדרישה.
   const head = target.split(' ').slice(0, 10).join(' ');
   if (head.length >= 25 && head !== target) {
     const h = ctx.windows.find((w) => !w.joined && w.norm.includes(head)) || ctx.windows.find((w) => w.norm.includes(head));
-    if (h) return { match: 'exact', page: pageAt(ctx.ends, h.offset), quote: clip(h.text) };
+    if (h) return { match: 'exact', page: pageAt(ctx.ends, h.offset), quote: clip(h.text), start: h.offset, end: h.end };
   }
 
   // 2) רוב המילים בשורה אחת
@@ -85,7 +86,7 @@ export function locate(reqText, ctx) {
       const score = req.filter((x) => have.has(x)).length / req.length;
       if (score >= APPROX_MIN && (!best || score > best.score || (score === best.score && !w.joined && best.w.joined))) best = { w, score };
     }
-    if (best) return { match: 'approx', page: pageAt(ctx.ends, best.w.offset), quote: clip(best.w.text), score: +best.score.toFixed(2) };
+    if (best) return { match: 'approx', page: pageAt(ctx.ends, best.w.offset), quote: clip(best.w.text), score: +best.score.toFixed(2), start: best.w.offset, end: best.w.end };
   }
   return { match: 'unresolved', page: null, quote: null };
 }
