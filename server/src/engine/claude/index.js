@@ -218,6 +218,8 @@ export async function checkRedFlags(rawText) {
       'תנאי פסילה (למשל הנחה מעל שיעור), סעיפי קנס/פיצוי מוסכם, מפגש/סיור חובה, ' +
       'דרישות ערבות/ביטוח, תנאים מגבילי-תחרות. רק מה שמופיע בטקסט — אל תמציא. ' +
       'לכל דגל: severity (דירוג קריטיות), detail (מה הסיכון), action (המלצת פעולה קונקרטית למגיש). החזר JSON בלבד.',
+    instruction: 'זהה את הדגלים האדומים במסמך המכרז שלמטה. רק מה שכתוב בו — אל תמציא דגל. ' +
+      'לכל דגל החזר label, detail, action, ו-severity (high / medium / low).',
     dataLabel: 'מסמך המכרז',
     data: rawText,
     effort: 'medium',

@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-11-01] — cache למסמך מכרז ב-Claude + תיקון הוראת דגלים
+
+### נבנה
+- ✅ **Prompt caching** ב-`engine/claude/provider.js`: בלוק ה-`<document>` (הטקסט הגדול) מסומן `cache_control: { type: 'ephemeral' }` והוא הבלוק האחרון ב-user, אחרי system ובלי tools — לפי סדר הקידומת של Anthropic (tools → system → messages). המסמך נשאר DATA מתוחם, לא נכנס ל-system. קריאה חוזרת לאותה פונקציה על אותו מכרז (למשל `checkRedFlags` מ-`assess` ואז מ-`summaryFor` ב-`GET /:id/document`, ושוב ב-`/summary` ו-`/summary.docx`) אמורה להחזיר `cache_read_input_tokens > 0`. שימוש ב-cache נרשם ללוג כשהשדות אינם אפס.
+- ✅ **באג:** `checkRedFlags` לא העביר `instruction`, והודעת ה-user נפתחה במחרוזת `undefined`. נוספה הוראה מפורשת, וה-provider מתעלם מ-instruction שאינו מחרוזת.
+- ✅ **באג:** `tools/ocr-pipeline.mjs` ייבא `closeOcr` מ-`lib/ocr.js`, שמייצא רק `ocrPdf` (כל קריאה מריצה תהליך-בן ויוצאת). הייבוא הוסר.
+
+### אומת
+- `server/test/claude-cache.test.js`. חוזה המנוע לא השתנה. אפס-הזיות לא נגע (ה-cache הוא על הקלט בלבד; ה-guardrail נשאר דטרמיניסטי).
+
+---
+
 ## [2026-10-07] — שער כשירות (Eligibility Gate) + תיקוני false Met — key-free
 
 ### רקע

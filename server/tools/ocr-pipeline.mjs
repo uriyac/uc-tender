@@ -1,7 +1,7 @@
 import { createCanvas } from '@napi-rs/canvas';
 import { PDFDocument } from 'pdf-lib';
 import { writeFileSync } from 'node:fs';
-import { ocrPdf, closeOcr } from '../src/lib/ocr.js';
+import { ocrPdf } from '../src/lib/ocr.js';
 
 // 1) draw a Hebrew "scanned" page image
 const W=1000,H=500; const c=createCanvas(W,H); const ctx=c.getContext('2d');
@@ -26,6 +26,6 @@ console.log('scanned PDF:', scanned.length, 'bytes (image-only, no text layer)')
 console.time('ocrPdf');
 const res=await ocrPdf(Buffer.from(scanned));
 console.timeEnd('ocrPdf');
-await closeOcr();
+// אין worker מתמשך לסגור: ocrPdf מריץ תהליך-בן ויוצא איתו.
 console.log('confidence:', res.confidence, '| pages:', res.pages, '| source:', res.source);
 console.log('--- extracted ---'); console.log(res.text || res.error);
