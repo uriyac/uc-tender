@@ -1,0 +1,12 @@
+# איתור דרישות מומצאות. רץ עם מנוע stub (בלי מפתח) או ENGINE=claude כשיש מפתח.
+# לא חלק מ-npm test — עם Claude זו קריאת רשת.
+description: כל דרישה שחולצה חייבת להימצא בטקסט המכרז
+providers:
+  - file://provider.mjs
+prompts:
+  - '{{text}}'
+tests: file://cases.mjs
+evaluateOptions:
+  maxConcurrency: 1
+commandLineOptions:
+  cache: false

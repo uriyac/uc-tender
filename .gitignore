@@ -21,6 +21,11 @@ uploads/
 server/tools/out/
 server/src/data/backups/
 
+# --- promptfoo (npm run eval) — תוצאות מקומיות, לא חלק מהריפו ---
+server/eval/results.json
+server/eval/results.html
+server/.promptfoo/
+
 # --- לוגים וזמניים ---
 *.log
 _srv.log

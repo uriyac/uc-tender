@@ -36,15 +36,32 @@ function dataBlock(label, text) {
 
 // קריאה גנרית: system + user (עם בלוק DATA), פלט JSON לפי schema.
 // effort: 'low' לחילוץ פשוט, 'high' למשימות שיפוט (מיפוי/טיוטה).
-export async function extract({ system, instruction, dataLabel, data, schema, effort = 'medium', maxTokens = 8000 }) {
-  const c = await client();
-  const user = data != null
-    ? `${instruction}\n\n${dataBlock(dataLabel || 'הטקסט', data)}`
-    : instruction;
+//
+// Prompt caching: מסמך המכרז הוא הקידומת היציבה (אותו טקסט נשלח שוב ב-assess,
+// summary, summary.docx). מסמנים את בלוק ה-<document> ב-cache_control ephemeral.
+// סדר הקידומת אצל Anthropic הוא tools → system → messages; אין tools כאן,
+// ה-system נשאר ההוראות (בלי טקסט המסמך), והמסמך הוא הבלוק האחרון ב-user
+// כדי שה-breakpoint יכסה את כל הקידומת היציבה. הוראת המשימה נשארת לפניו.
+const CACHE_EPHEMERAL = { type: 'ephemeral' };
 
-  // fallbacks:'default' — אם מסנן בטיחות דוחה (false positive על מסמך מכרז), השרת מריץ שוב
-  // על מודל חלופי באותה קריאה. דחייה של כל השרשרת עדיין מגיעה כ-stop_reason==='refusal'.
-  const res = await c.beta.messages.create({
+export function buildExtractRequest({ system, instruction, dataLabel, data, schema, effort = 'medium', maxTokens = 8000 }) {
+  const task = typeof instruction === 'string' ? instruction.trim() : '';
+  const blocks = [];
+  if (task) blocks.push({ type: 'text', text: task });
+  if (data != null) {
+    blocks.push({
+      type: 'text',
+      text: dataBlock(dataLabel || 'הטקסט', data),
+      cache_control: CACHE_EPHEMERAL,
+    });
+  }
+  if (!blocks.length) blocks.push({ type: 'text', text: 'החזר JSON לפי הסכמה.' });
+
+  // בלי מסמך (מיפוי/טיוטה) — מחרוזת user אחת, כמו קודם. עם מסמך — בלוקים,
+  // כדי שאפשר לסמן רק את ה-<document> ל-cache.
+  const content = data != null ? blocks : task || blocks[0].text;
+
+  return {
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
     model: MODEL,
@@ -55,8 +72,29 @@ export async function extract({ system, instruction, dataLabel, data, schema, ef
       format: { type: 'json_schema', schema },
     },
     system,
-    messages: [{ role: 'user', content: user }],
-  });
+    messages: [{ role: 'user', content }],
+  };
+}
+
+function logCacheUsage(usage) {
+  if (!usage) return;
+  const created = usage.cache_creation_input_tokens || 0;
+  const read = usage.cache_read_input_tokens || 0;
+  if (!created && !read) return;
+  console.log(`[claude] cache_creation_input_tokens=${created} cache_read_input_tokens=${read} input_tokens=${usage.input_tokens ?? 0} output_tokens=${usage.output_tokens ?? 0}`);
+}
+
+// הזרקת תעבורה לבדיקות — בלי מפתח ובלי רשת. null = הקריאה האמיתית.
+let _transport = null;
+export function setTransportForTests(fn) { _transport = fn; }
+
+export async function extract(opts) {
+  const body = buildExtractRequest(opts);
+  const res = _transport
+    ? await _transport(body)
+    : await (await client()).beta.messages.create(body);
+
+  logCacheUsage(res.usage);
 
   if (res.stop_reason === 'refusal') {
     throw new Error('הבקשה נדחתה ע"י מסנני הבטיחות (refusal).');

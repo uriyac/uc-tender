@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-11-01] — eval של promptfoo: דרישה שלא במסמך נכשלת
+
+### נבנה
+- ✅ **`server/eval/`** — ספק `file://` שקורא ל-`engine().parseTender` (stub בלי מפתח, Claude כש-`ENGINE=claude` ויש מפתח). רץ על מכרזים A/B/C מ-`test-data` ועל הפיקסטורה `multi-domain`.
+- ✅ **טענה:** `locateAll` מ-`sourceSpan.js`. דרישה ב-`unresolved` מפילה את הריצה — רשת דטרמיניסטית נגד דרישה שהמנוע המציא. לא חלק מ-`npm test` (עם Claude זו קריאת רשת). סקריפט: `npm run eval`. תיעוד קצר ב-`METHODOLOGY.md`.
+
+### אומת
+- `npm run eval` עם מנוע stub — **4/4**. `node --test` — **147/147** (כולל `test/eval-grounding.test.js`). אפס-הזיות לא הורחב: הבדיקה רק מסמנת דרישה שלא נמצאה במקור, לא ממלאת אותה.
+
+---
+
+## [2026-11-01] — cache למסמך מכרז ב-Claude + תיקון הוראת דגלים
+
+### נבנה
+- ✅ **Prompt caching** ב-`engine/claude/provider.js`: בלוק ה-`<document>` (הטקסט הגדול) מסומן `cache_control: { type: 'ephemeral' }` והוא הבלוק האחרון ב-user, אחרי system ובלי tools — לפי סדר הקידומת של Anthropic (tools → system → messages). המסמך נשאר DATA מתוחם, לא נכנס ל-system. קריאה חוזרת לאותה פונקציה על אותו מכרז (למשל `checkRedFlags` מ-`assess` ואז מ-`summaryFor` ב-`GET /:id/document`, ושוב ב-`/summary` ו-`/summary.docx`) אמורה להחזיר `cache_read_input_tokens > 0`. שימוש ב-cache נרשם ללוג כשהשדות אינם אפס.
+- ✅ **באג:** `checkRedFlags` לא העביר `instruction`, והודעת ה-user נפתחה במחרוזת `undefined`. נוספה הוראה מפורשת, וה-provider מתעלם מ-instruction שאינו מחרוזת.
+- ✅ **באג:** `tools/ocr-pipeline.mjs` ייבא `closeOcr` מ-`lib/ocr.js`, שמייצא רק `ocrPdf` (כל קריאה מריצה תהליך-בן ויוצאת). הייבוא הוסר.
+
+### אומת
+- `cd server && node --test --test-concurrency=1` — **137/137**. `server/test/claude-cache.test.js` (4). חוזה המנוע לא השתנה. אפס-הזיות לא נגע (ה-cache הוא על הקלט בלבד; ה-guardrail נשאר דטרמיניסטי).
+
+---
+
+## [2026-11-01] — OCR עברי מדויק יותר + כיסוי עמודים
+
+### נבנה
+- ✅ **מודל:** `heb.traineddata.gz` הוחלף מ-tessdata_fast (≈476KB) בגרסה השלמה של tessdata_best — `4.0.0_best_int` (≈567KB, Apache-2.0, ראה `server/src/lib/tessdata/LICENSE` ו-`NOTICE`). הקובץ הגולמי מ-[tessdata_best](https://github.com/tesseract-ocr/tessdata_best) (≈3.0MB דחוס) **מפיל** את tesseract.js-core 7 (`missing function: tesseract::DotProductSSE` בליבת relaxed-SIMD) והיה שובר כל מכרז סרוק. הגרסה השלמה היא המודל המדויק שהמנוע המבודד באמת מריץ.
+- ✅ **עמודים:** תקרת 15 הוחלפה ב-`OCR_MAX_PAGES` (ברירת מחדל 200, `0` = בלי תקרה). עמוד-עמוד, בלי לצבור את כל התמונות בזיכרון. סימון `-- N of M --` משתמש ב-M האמיתי של ה-PDF גם כשנעצרים באמצע.
+- ✅ **אזהרה בעברית** כשעמודים לא עברו OCR (תקרה או תקציב זמן): נשמרת ב-`ocr_warning` ומוצגת בבאנר ה-OCR הקיים, יחד עם `עמודים שחולצו/סה"כ`.
+- ✅ **זמן:** 120 השניות התאימו ל-15 עמודי fast. נמדד ≈2 שניות לעמוד צפוף במודל החדש (קנה-מידה 2); 89 עמודים חורגים מ-120ש והריגה הייתה מוחקת את כל הטקסט. התקציב עכשיו 8ש×תקרה (רצפה 3 דקות, תקרה 20 דקות), ניתן לדרוס ב-`OCR_TIMEOUT_MS`. ה-worker עוצר בעצמו ומחזיר מה שחולץ + אזהרה, לפני שהתהליך-האב הורג אותו.
+
+### אומת
+- `cd server && node --test --test-concurrency=1` — **144/144**. `server/test/ocr-pages.test.js` (7) — תקרה, סימון M אמיתי, אזהרה, עצירת תקציב, ואותו חוזה דרך תהליך-הבן. עמוד צפוף אמיתי: 3 עמודים ≈5.4ש, ביטחון 86, עברית קריאה (עם שגיאות OCR צפויות).
+
+---
+
 ## [2026-10-07] — שער כשירות (Eligibility Gate) + תיקוני false Met — key-free
 
 ### רקע

@@ -72,7 +72,12 @@ async function extractLegacy(buffer, filename, kind) {
       const { ocrPdf } = await import('./ocr.js');
       const ocr = await ocrPdf(buffer);
       if (ocr.text && ocr.text.replace(/--\s*\d+\s+of\s+\d+\s*--/g, '').replace(/\s+/g, '').length >= 20) {
-        return { kind, rawText: ocr.text, ocr: true, ocrConfidence: ocr.confidence };
+        return {
+          kind, rawText: ocr.text, ocr: true, ocrConfidence: ocr.confidence,
+          ocrWarning: ocr.warning || null,
+          ocrPages: ocr.pages ?? null,
+          ocrPageCount: ocr.pageCount ?? null,
+        };
       }
       return { kind, rawText: '', error: 'לא הופק טקסט מה-PDF (ככל הנראה סרוק/תמונה). ' + (ocr.error ? 'OCR נכשל: ' + ocr.error : 'נדרש OCR.') };
     }

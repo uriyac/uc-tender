@@ -74,7 +74,7 @@ r.delete('/', (req, res) => {
 // POST /api/tenders — הזנת מכרז (קובץ בשדה "file" או טקסט מודבק ב-body.text)
 r.post('/', upload.single('file'), async (req, res) => {
   let text = (req.body?.text || '').trim();
-  let ocrUsed = false, ocrConfidence = null, filePath = null, fileName = null;
+  let ocrUsed = false, ocrConfidence = null, ocrWarning = null, ocrPages = null, ocrPageCount = null, filePath = null, fileName = null;
 
   if (!text && req.file) {
     const original = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
@@ -85,6 +85,9 @@ r.post('/', upload.single('file'), async (req, res) => {
     if (ext.error) return res.status(422).json({ error: ext.error });
     text = ext.rawText;
     ocrUsed = !!ext.ocr; ocrConfidence = ext.ocrConfidence ?? null; // מכרז סרוק → OCR (P2)
+    ocrWarning = ext.ocrWarning || null;
+    ocrPages = ext.ocrPages ?? null;
+    ocrPageCount = ext.ocrPageCount ?? null;
   }
   if (!text) return res.status(400).json({ error: 'לא התקבל מכרז (קובץ או טקסט)' });
 
@@ -116,6 +119,7 @@ r.post('/', upload.single('file'), async (req, res) => {
     red_flags_high: flags.filter((f) => f.severity === 'high').length,
     // מקור: OCR (מכרז סרוק) — לשקיפות בחזית
     ocr: ocrUsed, ocr_confidence: ocrConfidence,
+    ocr_warning: ocrWarning, ocr_pages: ocrPages, ocr_page_count: ocrPageCount,
     // הקובץ המקורי (אם הועלה קובץ) — לפתיחת המקור בעמוד הדרישה
     file_path: filePath, file_name: fileName,
     // סיכום מובנה (B11)
