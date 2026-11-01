@@ -87,7 +87,12 @@
 - **gstack** (מותקן גלובלית): `/qa` לבדיקת הממשק בדפדפן, `/review` לבדיקת קוד לפני commit,
   `/investigate` לאיתור תקלות, `/plan-eng-review` לפני פיצ'ר גדול.
   ⚠️ `/ship` ו-`/land-and-deploy` מעלים ל-GitHub. להשתמש רק בכוונה.
+- **eval (promptfoo)** — בודק שכל דרישה ש-`parseTender` חילץ באמת נמצאת בטקסט המכרז
+  (`locateAll` מ-`sourceSpan.js`). דרישה שלא אותרה נכשלת: זו רשת נגד דרישה שהומצאה.
+  לא רץ ב-`npm test` (עם Claude זו קריאת רשת). מתוך `server/`:
+  - `npm run eval` — מנוע stub, בלי מפתח. מכרזים A/B/C מ-`test-data` + הפיקסטורה `multi-domain`.
+  - `ENGINE=claude npm run eval` — רק כש-`ANTHROPIC_API_KEY` מוגדר ב-`.env`. בלי מפתח אל תגדיר `ENGINE=claude`.
 
 ---
 
-*גרסה: 2.0 | עודכן: 2026-10-06 | גרסה 1.0 (תקופת Lovable) מ-2026-07-20*
+*גרסה: 2.1 | עודכן: 2026-11-01 | גרסה 1.0 (תקופת Lovable) מ-2026-07-20*
