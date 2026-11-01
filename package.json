@@ -1,0 +1,17 @@
+{
+  "name": "uc-tender-repo-tools",
+  "private": true,
+  "description": "כלי פיתוח ברמת הריפו (lint). השרת ב-server/, הדסקטופ ב-desktop/.",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0"
+  }
+}

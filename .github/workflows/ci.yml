@@ -1,0 +1,84 @@
+# CI בסיסי — בדיקות על מנוע stub בלבד. בלי secrets, בלי מפתחות, בלי קריאות AI בתשלום.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # מנוע דטרמיניסטי בלבד. מפתחות ריקים במפורש (אבל זה לא מספיק לבד — ראה assert-stub-env).
+  ENGINE: stub
+  ANTHROPIC_API_KEY: ''
+  OPENAI_API_KEY: ''
+  CLAUDE_MODEL: ''
+  CI: 'true'
+  LOG_REQUESTS: 'off'
+
+jobs:
+  test:
+    name: Server tests (ENGINE=stub, no network)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      # --ignore-scripts: better-sqlite3 (תלות לא בשימוש — ה-DB הוא node-sqlite3-wasm) מנסה build native.
+      # גם מונע הורדות רשת מסקריפטי install.
+      - name: Install (npm ci)
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Guard — stub engine, no .env, no keys
+        run: node scripts/ci/assert-stub-env.mjs
+
+      - name: Tests (ENGINE=stub, all outbound network blocked)
+        env:
+          # השומר נטען בכל תהליך node (כולל תהליכי-הבן של node --test ו-OCR worker)
+          NODE_OPTIONS: --import=${{ github.workspace }}/server/scripts/ci/no-network-guard.mjs
+          UCT_NET_GUARD_LOG: ${{ runner.temp }}/net-guard.log
+          UCT_DATA_DIR: ${{ runner.temp }}/uct-data
+        run: npm test
+
+      - name: Guard — no blocked network attempts during tests
+        if: always()
+        run: |
+          LOG="${{ runner.temp }}/net-guard.log"
+          if [ -s "$LOG" ]; then
+            echo "::error::Network/paid-API attempt detected during tests:"
+            cat "$LOG"
+            exit 1
+          fi
+          echo "no network attempts"
+
+  lint:
+    name: Lint (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: ESLint (non-blocking)
+        continue-on-error: true
+        run: npm run lint
