@@ -1,0 +1,14 @@
+heb.traineddata.gz
+
+המודל המצורף הוא הגרסה השלמה (integerized LSTM) של tessdata_best:
+  4.0.0_best_int / heb.traineddata.gz
+  חבילה: @tesseract.js-data/heb
+  מקור האימון: https://github.com/tesseract-ocr/tessdata_best
+רישיון: Apache License 2.0 — ראה LICENSE בתיקייה זו.
+
+הקובץ דחוס ב-gzip כי tesseract.js טוען heb.traineddata.gz כש-gzip:true.
+
+למה לא הקובץ הגולמי מ-tessdata_best (≈3.0MB דחוס): tesseract.js-core 7
+(ליבת relaxed-SIMD) קורס בטעינה עם
+  missing function: tesseract::DotProductSSE
+ולכן מכרז סרוק היה נכשל כולו. הגרסה השלמה היא המודל המדויק שהמנוע הזה יודע להריץ.

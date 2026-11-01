@@ -755,7 +755,8 @@
 
     // P2 — באנר OCR: המסמך סרוק, חולץ אוטומטית, מומלץ לאמת
     const ocrEl=document.getElementById('an-ocr-banner');
-    if(ocrEl) ocrEl.innerHTML = t.ocr ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.72 0.16 70 / 0.4);background:oklch(0.72 0.16 70 / 0.06)"><span class="text-[18px] shrink-0">📄</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.5 0.13 60)">המסמך סרוק — חולץ ב-OCR${t.ocr_confidence?` (ביטחון ${t.ocr_confidence}%)`:''}</div><div class="t-12 text-black/65 mt-0.5">ייתכנו אי-דיוקים בזיהוי. מומלץ לאמת נתונים קריטיים (סכומים, תאריכים, תנאי סף) מול המסמך המקורי.</div></div></div>` : '';
+    const ocrWarn = t.ocr_warning ? `<div class="t-12 font-semibold mt-1.5" style="color:oklch(0.45 0.16 35)">${esc(t.ocr_warning)}</div>` : '';
+    if(ocrEl) ocrEl.innerHTML = t.ocr ? `<div class="rounded-[8px] border p-4 flex items-start gap-3" style="border-color:oklch(0.72 0.16 70 / 0.4);background:oklch(0.72 0.16 70 / 0.06)"><span class="text-[18px] shrink-0">📄</span><div class="flex-1"><div class="t-13 font-semibold" style="color:oklch(0.5 0.13 60)">המסמך סרוק — חולץ ב-OCR${t.ocr_confidence?` (ביטחון ${t.ocr_confidence}%)`:''}${t.ocr_page_count?` · ${t.ocr_pages||0}/${t.ocr_page_count} עמודים`:''}</div><div class="t-12 text-black/65 mt-0.5">ייתכנו אי-דיוקים בזיהוי. מומלץ לאמת נתונים קריטיים (סכומים, תאריכים, תנאי סף) מול המסמך המקורי.</div>${ocrWarn}</div></div>` : '';
 
     // S4.2 — באנר זיכרון-מפרסם: "כבר התמודדנו מול X"
     const ib=document.getElementById('an-issuer-banner'), ins=data.issuer_insight;
