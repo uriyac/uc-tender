@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test --test-concurrency=1"
+    "test": "node --import ./tools/isolated-data-dir.mjs --test --test-concurrency=1"
   },
   "dependencies": {
     "@firecrawl/anydoc": "^0.1.7",
