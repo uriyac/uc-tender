@@ -14,6 +14,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // באפליקציה ארוזה תיקיית-האפליקציה read-only → ה-DB נכתב ל-config.dataDir (userData).
 // בפיתוח (dataDir=null) — ליד הקוד, כמו קודם.
 const DATA_DIR = config.dataDir || __dirname;
+// הגנה: תחת node --test (NODE_TEST_CONTEXT) או NODE_ENV=test — אסור לפתוח את DB הפיתוח.
+// `npm test` מכוון את UCT_DATA_DIR לתיקייה זמנית (tools/isolated-data-dir.mjs).
+if (!config.dataDir && (process.env.NODE_TEST_CONTEXT || process.env.NODE_ENV === 'test')) {
+  throw new Error('store: בדיקות לא רשאיות לפתוח את DB הפיתוח — הרץ דרך `npm test` או קבע UCT_DATA_DIR');
+}
 const DB_PATH = join(DATA_DIR, 'app.sqlite');
 mkdirSync(DATA_DIR, { recursive: true });
 
